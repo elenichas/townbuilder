@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildVoxel } from '../src/builder';
+import { buildVoxel, pointHeight } from '../src/builder';
 import { generateTown } from '../src/generate';
 import { cellAt, generateGrid, pointInPolygon } from '../src/grid';
 import { mulberry32 } from '../src/rng';
-import { compat, isIsland, isStorey } from '../src/tiles';
+import { KIND_BUILDING, ZONE_MEADOW, ZONE_PLAZA, ZONE_WATER, ZONE_WOODS, compat, isGroundTile, isStorey } from '../src/tiles';
 import { Town, key, keyK, keyV } from '../src/town';
 
 const grid = generateGrid(9, 7);
@@ -68,8 +68,14 @@ describe('wfc town', () => {
       if (r < 0.65) {
         let k = 0;
         while (town.has(v, k)) k++;
-        town.add(v, k, Math.floor(rand() * 8), Math.floor(rand() * 1e9));
-      } else if (r < 0.8) {
+        const zones = [ZONE_MEADOW, ZONE_WOODS, ZONE_PLAZA, ZONE_WATER];
+        // Land at the bottom and sometimes stacked into hills; buildings above.
+        const land = k === 0 || (town.isGround(v, k - 1) && rand() < 0.35);
+        town.add(v, k, Math.floor(rand() * 8), Math.floor(rand() * 1e9), land ? zones[Math.floor(rand() * 4)] : KIND_BUILDING);
+      } else if (r < 0.72) {
+        const gt = town.groundTop(v);
+        if (gt >= 0) town.setZone(v, gt, [ZONE_MEADOW, ZONE_WOODS, ZONE_PLAZA, ZONE_WATER][Math.floor(rand() * 4)]);
+      } else if (r < 0.85) {
         const filled = [...town.cells.keys()];
         if (filled.length) {
           const kk = filled[Math.floor(rand() * filled.length)];
@@ -90,7 +96,7 @@ describe('wfc town', () => {
   it('reroll changes the clicked piece when an alternative exists', () => {
     const town = new Town(grid);
     const v = grid.pos.findIndex((_, i) => grid.buildable[i] && Math.hypot(grid.pos[i].x, grid.pos[i].z) < 2);
-    town.add(v, 0, 0, 1);
+    town.add(v, 0, 0, 1, ZONE_MEADOW);
     town.add(v, 1, 0, 2);
     town.add(v, 2, 0, 3);
     const kk = key(v, 2);
@@ -98,6 +104,7 @@ describe('wfc town', () => {
       const before = town.cells.get(kk)!.tile;
       const ch = town.reroll(v, 2)!;
       expect(town.cells.get(kk)!.tile).not.toBe(before);
+      expect(isStorey(town.cells.get(kk)!.tile)).toBe(true);
       expect(ch.look.has(kk)).toBe(true);
     }
     assertConsistent(town);
@@ -125,7 +132,7 @@ describe('wfc town', () => {
     const town = new Town(grid);
     generateTown(town, mulberry32(11));
     const tiles = [...town.cells.values()].map((c) => c.tile);
-    expect(tiles.some(isIsland)).toBe(true);
+    expect(tiles.some(isGroundTile)).toBe(true);
     expect(tiles.some(isStorey)).toBe(true);
   });
 });
@@ -147,7 +154,7 @@ describe('builder', () => {
 });
 
 describe('picking actions', () => {
-  it('walls and cliffs always point at an empty edge neighbour on the same level', () => {
+  it('walls face non-buildings and cliffs face open sky', () => {
     const town = new Town(grid);
     generateTown(town, mulberry32(9));
     for (const k of town.cells.keys()) {
@@ -161,9 +168,47 @@ describe('picking actions', () => {
         if (a > 0) {
           const n = a - 1;
           expect(grid.edgeNbrs[v]).toContain(n);
-          expect(town.has(n, lvl)).toBe(false);
+          if (town.isGround(v, lvl)) expect(town.groundTop(n)).toBe(-1); // cliffs face open sky
+          else expect(town.isBuilding(n, lvl)).toBe(false); // walls face anything but another building
         }
       }
     }
+  });
+});
+
+describe('terrain', () => {
+  it('keeps land columns solid and only lets buildings sit above level 0', () => {
+    const town = new Town(grid);
+    const v = grid.pos.findIndex((_, i) => grid.buildable[i] && Math.hypot(grid.pos[i].x, grid.pos[i].z) < 2);
+    expect(town.add(v, 1, 0, 1, ZONE_MEADOW)).toBeNull(); // no floating land
+    expect(town.add(v, 0, 0, 1, KIND_BUILDING)).toBeNull(); // no buildings at sea level
+    town.add(v, 0, 0, 1, ZONE_MEADOW);
+    town.add(v, 1, 0, 2, ZONE_WOODS);
+    expect(town.groundTop(v)).toBe(1);
+    expect(town.remove(v, 0)).toBeNull(); // can't dig out the middle of a hill
+    expect(town.remove(v, 1)).not.toBeNull();
+    expect(town.groundTop(v)).toBe(0);
+  });
+
+  it('joins neighbouring terrain without cracks', () => {
+    const town = new Town(grid);
+    generateTown(town, mulberry32(21));
+    for (let v = 0; v < grid.pos.length; v++) {
+      for (const Q of grid.quarters[v]) {
+        // The shared corner computed from either side must agree.
+        const a = pointHeight(town, [v, Q.n1, Q.n2, Q.n3]);
+        const b = pointHeight(town, [Q.n2, Q.n3, v, Q.n1]);
+        expect(a).toBeCloseTo(b, 9);
+      }
+    }
+  });
+
+  it('generates hills, woods, water and squares', () => {
+    const town = new Town(grid);
+    generateTown(town, mulberry32(8));
+    const kinds = new Set([...town.cells.values()].map((c) => c.kind));
+    for (const z of [ZONE_MEADOW, ZONE_WOODS, ZONE_WATER, ZONE_PLAZA, KIND_BUILDING]) expect(kinds.has(z)).toBe(true);
+    expect([...town.cells.keys()].some((k) => keyK(k) > 0 && town.isGround(keyV(k), keyK(k)))).toBe(true);
+    assertConsistent(town);
   });
 });

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { H, buildVoxel, levelBottom } from './builder';
 import type { Vec2 } from './grid';
-import { type Change, type Town, key, keyK, keyV } from './town';
+import { type Change, MAX_LEVEL, type Town, key, keyV } from './town';
 
 interface Anim {
   mesh: THREE.Mesh;
@@ -45,11 +45,10 @@ export class TownView {
   apply(ch: Change, pop: Set<number> = new Set()) {
     const g = this.town.grid;
     const dirty = new Set<number>(ch.look);
+    // Terrain heights and walls depend on whole neighbouring columns.
     for (const fk of ch.fill) {
       const v = keyV(fk);
-      const k = keyK(fk);
-      for (let j = 0; j <= 15; j++) dirty.add(key(v, j));
-      for (const u of [v, ...g.quadMates[v]]) for (let j = Math.max(0, k - 1); j <= k + 1; j++) dirty.add(key(u, j));
+      for (const u of [v, ...g.quadMates[v]]) for (let j = 0; j <= MAX_LEVEL + 1; j++) dirty.add(key(u, j));
     }
     for (const k of dirty) {
       if (this.town.cells.has(k)) this.rebuild(k, pop.has(k));

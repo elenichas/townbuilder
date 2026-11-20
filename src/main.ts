@@ -1,19 +1,20 @@
 import * as THREE from 'three';
 import './style.css';
 import { sfx, isMuted, setMuted } from './audio';
-import { ACT_DOWN, ACT_UP, H } from './builder';
+import { ACT_DOWN, ACT_NONE, ACT_UP, H } from './builder';
 import { generateTown } from './generate';
 import { cellAt, generateGrid } from './grid';
 import { WALL_HEX } from './palette';
 import { mulberry32, randomSeed } from './rng';
 import { createScene } from './scene';
 import { decode, encode } from './share';
+import { KIND_BUILDING, ZONES, ZONE_MEADOW, ZONE_WATER, isZone } from './tiles';
 import { type Change, Town, type Voxel, key, keyK, keyV } from './town';
 import { GRID_OPACITY, Ghost, Puffs, TownView, gridLines } from './view';
 
-type Tool = 'build' | 'restyle' | 'paint' | 'erase';
+type Tool = 'build' | 'land' | 'restyle' | 'paint' | 'erase';
 type Hit = { kind: 'voxel'; key: number; act: number } | { kind: 'ground'; v: number };
-type Action = { op: 'add' | 'remove' | 'reroll' | 'paint'; v: number; k: number };
+type Action = { op: 'add' | 'remove' | 'reroll' | 'paint' | 'zone'; v: number; k: number; kind?: number };
 
 const STORAGE_KEY = 'cloudhaven.town';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -30,6 +31,7 @@ ctx.scene.add(grid3d);
 
 let tool: Tool = 'build';
 let color = 0;
+let zone = ZONE_MEADOW;
 const undoStack: Map<number, Voxel>[] = [];
 const redoStack: Map<number, Voxel>[] = [];
 
@@ -98,33 +100,63 @@ function toolFor(e: { button?: number; altKey: boolean; shiftKey: boolean }): To
 
 function actionFor(hit: Hit | null, t: Tool): Action | null {
   if (!hit) return null;
-  if (hit.kind === 'ground') return t === 'build' && town.canPlace(hit.v, 0) ? { op: 'add', v: hit.v, k: 0 } : null;
+  const newLand = t === 'land' ? zone : ZONE_MEADOW;
+  if (hit.kind === 'ground') {
+    if (t !== 'build' && t !== 'land') return null;
+    return town.canPlace(hit.v, 0, newLand) ? { op: 'add', v: hit.v, k: 0, kind: newLand } : null;
+  }
   const v = keyV(hit.key);
-  const k = keyK(hit.key);
+  let k = keyK(hit.key);
+  const ground = isZone(town.kindAt(v, k));
+  // Any click on a land column (even its rocky underside) acts on the column's top.
+  if (ground) k = town.groundTop(v);
+  const sideIsland = (): Action | null => {
+    const n = hit.act - 1;
+    return town.canPlace(n, 0, newLand) ? { op: 'add', v: n, k: 0, kind: newLand } : null;
+  };
   switch (t) {
     case 'build': {
+      if (ground) {
+        if (hit.act > 0) return sideIsland();
+        if (hit.act !== ACT_UP) return null;
+        return town.canPlace(v, k + 1) ? { op: 'add', v, k: k + 1, kind: KIND_BUILDING } : null;
+      }
       let tv = v;
       let tk = k;
       if (hit.act === ACT_UP) tk = k + 1;
       else if (hit.act === ACT_DOWN) tk = k - 1;
       else if (hit.act > 0) tv = hit.act - 1;
       else return null;
-      return town.canPlace(tv, tk) ? { op: 'add', v: tv, k: tk } : null;
+      const kind = tk === 0 ? ZONE_MEADOW : KIND_BUILDING;
+      return town.canPlace(tv, tk, kind) ? { op: 'add', v: tv, k: tk, kind } : null;
+    }
+    case 'land': {
+      if (!ground) return null;
+      if (hit.act > 0) return sideIsland();
+      if (hit.act === ACT_NONE || town.has(v, k + 1)) return null;
+      // First click paints the land; clicking land that already has this type raises a hill.
+      if (town.kindAt(v, k) !== zone) return { op: 'zone', v, k };
+      if (zone === ZONE_WATER) return null;
+      return town.canPlace(v, k + 1, zone) ? { op: 'add', v, k: k + 1, kind: zone } : null;
     }
     case 'erase':
       return { op: 'remove', v, k };
     case 'restyle':
       return { op: 'reroll', v, k };
     case 'paint':
-      return k >= 1 && town.get(v, k)?.color !== color ? { op: 'paint', v, k } : null;
+      return !ground && town.get(v, k)?.color !== color ? { op: 'paint', v, k } : null;
   }
 }
 
-const GHOST_COLOR: Record<Action['op'], string> = { add: '#ffffff', remove: '#ff7b7b', reroll: '#ffd65c', paint: '#ffffff' };
+const GHOST_COLOR: Record<Action['op'], string> = { add: '#ffffff', remove: '#ff7b7b', reroll: '#ffd65c', paint: '#ffffff', zone: '#ffffff' };
+const zoneColor = (z: number) => ZONES.find((x) => x.id === z)?.color ?? '#ffffff';
 
 function showGhost(a: Action | null) {
   if (!a) return ghost.hide();
-  ghost.show(grid.ring[a.v], a.k, a.op === 'paint' ? WALL_HEX[color] : GHOST_COLOR[a.op], a.op === 'add' ? 0.0 : 0.04);
+  let col = GHOST_COLOR[a.op];
+  if (a.op === 'paint') col = WALL_HEX[color];
+  else if (a.op === 'zone' || (a.op === 'add' && isZone(a.kind ?? -1) && tool === 'land')) col = zoneColor(zone);
+  ghost.show(grid.ring[a.v], a.k, col, a.op === 'add' ? 0.0 : 0.04);
 }
 
 // ---------------------------------------------------------------- actions
@@ -132,7 +164,8 @@ function showGhost(a: Action | null) {
 function perform(a: Action) {
   const snap = town.snapshot();
   let ch: Change | null = null;
-  if (a.op === 'add') ch = town.add(a.v, a.k, color, randomSeed());
+  if (a.op === 'add') ch = town.add(a.v, a.k, color, randomSeed(), a.kind ?? KIND_BUILDING);
+  else if (a.op === 'zone') ch = town.setZone(a.v, a.k, zone);
   else if (a.op === 'remove') ch = town.remove(a.v, a.k);
   else if (a.op === 'reroll') ch = town.reroll(a.v, a.k);
   else ch = town.paint(a.v, a.k, color);
@@ -143,12 +176,12 @@ function perform(a: Action) {
 
   const kk = key(a.v, a.k);
   // On a restyle, everything that changed to fit pops, so you can see what is connected.
-  view.apply(ch, a.op === 'reroll' ? new Set([kk, ...ch.look]) : new Set([kk]));
+  view.apply(ch, a.op === 'reroll' || a.op === 'zone' ? new Set([kk, ...ch.look]) : new Set([kk]));
 
   const p = grid.pos[a.v];
   const y = a.k === 0 ? 0.1 : (a.k - 0.4) * H;
-  if (a.op === 'add') {
-    puffs.burst(p.x, y, p.z);
+  if (a.op === 'add' || a.op === 'zone') {
+    puffs.burst(p.x, y, p.z, a.op === 'zone' ? 4 : 7);
     sfx.place(a.k);
   } else if (a.op === 'remove') {
     puffs.burst(p.x, y, p.z, 4);
@@ -244,8 +277,8 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     stepHistory(redoStack, undoStack);
   } else if (!mod) {
-    const tools: Tool[] = ['build', 'restyle', 'paint', 'erase'];
-    if (e.key >= '1' && e.key <= '4') setTool(tools[+e.key - 1]);
+    const tools: Tool[] = ['build', 'land', 'restyle', 'paint', 'erase'];
+    if (e.key >= '1' && e.key <= '5') setTool(tools[+e.key - 1]);
     else if (e.key.toLowerCase() === 'n') toggleNight();
     else if (e.key === '?') toggleHelp(true);
     else if (e.key === 'Escape') toggleHelp(false);
@@ -268,6 +301,8 @@ function setTool(t: Tool) {
     b.classList.toggle('active', on);
     b.setAttribute('aria-pressed', String(on));
   });
+  swatches.hidden = t === 'land';
+  zoneSwatches.hidden = t !== 'land';
   refreshHover();
 }
 document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.addEventListener('click', () => setTool(b.dataset.tool as Tool)));
@@ -282,10 +317,26 @@ WALL_HEX.forEach((hex, i) => {
   b.addEventListener('click', () => {
     color = i;
     swatches.querySelectorAll('.swatch').forEach((s, j) => s.classList.toggle('active', j === i));
-    if (tool === 'erase' || tool === 'restyle') setTool('build');
+    if (tool !== 'paint' && tool !== 'build') setTool('build');
   });
   swatches.appendChild(b);
 });
+
+const zoneSwatches = $('zones');
+ZONES.forEach((z) => {
+  const b = document.createElement('button');
+  b.className = 'swatch zone' + (z.id === zone ? ' active' : '');
+  b.style.background = z.color;
+  b.title = z.name;
+  b.setAttribute('aria-label', z.name);
+  b.addEventListener('click', () => {
+    zone = z.id;
+    zoneSwatches.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('active', s === b));
+    setTool('land');
+  });
+  zoneSwatches.appendChild(b);
+});
+zoneSwatches.hidden = true;
 
 let toastTimer = 0;
 function toast(msg: string) {

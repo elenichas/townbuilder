@@ -2,30 +2,40 @@
  * The tile catalogue the WFC solver picks from.
  *
  * Every filled voxel is one WFC variable. What it *can* be depends on its context
- * (the fill pattern around it): a voxel at level 0 is an island, above that it is a
- * storey of a house. Which version of that it becomes is chosen by the solver so that
- * neighbouring pieces fit together (the adjacency rules in `compat`).
+ * (the fill pattern around it, and for land the terrain type the player painted).
+ * Which version it becomes is chosen by the solver so neighbouring pieces fit
+ * together (the adjacency rules in `compat`).
  */
+
+// ---------------------------------------------------------------- voxel kinds
+
+export const KIND_BUILDING = 0;
+export const ZONE_MEADOW = 1;
+export const ZONE_WOODS = 2;
+export const ZONE_PLAZA = 3;
+export const ZONE_WATER = 4;
+export const isZone = (kind: number) => kind >= ZONE_MEADOW && kind <= ZONE_WATER;
+
+export const ZONES = [
+  { id: ZONE_MEADOW, name: 'Meadow', color: '#93cc6e' },
+  { id: ZONE_WOODS, name: 'Woods', color: '#4f9a63' },
+  { id: ZONE_PLAZA, name: 'Square', color: '#e2d6c0' },
+  { id: ZONE_WATER, name: 'Water', color: '#79c3e2' },
+] as const;
+
+// ---------------------------------------------------------------- storey tiles
 
 export const WIN = ['square', 'arch', 'round'] as const;
 export const FEAT = ['plain', 'shutters', 'flowers', 'balcony', 'door', 'shop'] as const;
 export const ROOF = ['none', 'hip', 'steep', 'flat'] as const;
-export const GROUND = ['grass', 'flowers', 'tree', 'plaza', 'pond'] as const;
 
 export const W_SQUARE = 0, W_ARCH = 1, W_ROUND = 2;
 export const F_PLAIN = 0, F_SHUTTERS = 1, F_FLOWERS = 2, F_BALCONY = 3, F_DOOR = 4, F_SHOP = 5;
 export const R_NONE = 0, R_HIP = 1, R_STEEP = 2, R_FLAT = 3;
-export const G_GRASS = 0, G_FLOWERS = 1, G_TREE = 2, G_PLAZA = 3, G_POND = 4;
 
 export const N_STOREY = WIN.length * FEAT.length * ROOF.length; // 72
-export const ISLAND0 = N_STOREY; // 72..76
-export const COVERED = ISLAND0 + GROUND.length; // 77: island hidden under a building
-export const N_TILES = COVERED + 1;
-
 export const storeyTile = (w: number, f: number, r: number) => (w * FEAT.length + f) * ROOF.length + r;
-export const islandTile = (g: number) => ISLAND0 + g;
 export const isStorey = (t: number) => t >= 0 && t < N_STOREY;
-export const isIsland = (t: number) => t >= ISLAND0 && t < COVERED;
 
 export interface StoreyStyle {
   win: number;
@@ -35,25 +45,90 @@ export interface StoreyStyle {
 export function decodeStorey(t: number): StoreyStyle {
   return { win: Math.floor(t / (FEAT.length * ROOF.length)), feat: Math.floor(t / ROOF.length) % FEAT.length, roof: t % ROOF.length };
 }
-export const decodeIsland = (t: number) => t - ISLAND0;
+
+// ---------------------------------------------------------------- ground tiles
+
+export interface GroundTile {
+  zone: number;
+  name: string;
+  weight: number;
+}
+
+export const GROUND_TILES: GroundTile[] = [
+  { zone: ZONE_MEADOW, name: 'grass', weight: 2.5 },
+  { zone: ZONE_MEADOW, name: 'flowers', weight: 1.2 },
+  { zone: ZONE_MEADOW, name: 'tree', weight: 1.1 },
+  { zone: ZONE_MEADOW, name: 'bush', weight: 0.9 },
+  { zone: ZONE_MEADOW, name: 'rocks', weight: 0.45 },
+  { zone: ZONE_WOODS, name: 'pines', weight: 2 },
+  { zone: ZONE_WOODS, name: 'oaks', weight: 2 },
+  { zone: ZONE_WOODS, name: 'grove', weight: 1.3 },
+  { zone: ZONE_WOODS, name: 'clearing', weight: 0.45 },
+  { zone: ZONE_PLAZA, name: 'paving', weight: 2.4 },
+  { zone: ZONE_PLAZA, name: 'lamp', weight: 1.2 },
+  { zone: ZONE_PLAZA, name: 'fountain', weight: 0.6 },
+  { zone: ZONE_PLAZA, name: 'bench', weight: 1 },
+  { zone: ZONE_PLAZA, name: 'market', weight: 0.7 },
+  { zone: ZONE_PLAZA, name: 'planter', weight: 0.9 },
+  { zone: ZONE_WATER, name: 'open', weight: 2.5 },
+  { zone: ZONE_WATER, name: 'lilies', weight: 1 },
+  { zone: ZONE_WATER, name: 'reeds', weight: 1.6 },
+  { zone: ZONE_WATER, name: 'boat', weight: 0.5 },
+  { zone: ZONE_WATER, name: 'rock', weight: 0.4 },
+];
+
+export const GROUND0 = N_STOREY;
+export const COVERED = GROUND0 + GROUND_TILES.length; // land hidden under something
+export const N_TILES = COVERED + 1;
+
+const gid = (name: string) => {
+  const i = GROUND_TILES.findIndex((t) => t.name === name);
+  if (i < 0) throw new Error(`unknown ground tile ${name}`);
+  return GROUND0 + i;
+};
+/** Ground tile ids by name. */
+export const T = Object.fromEntries(GROUND_TILES.map((t) => [t.name, gid(t.name)])) as Record<string, number>;
+
+export const isGroundTile = (t: number) => t >= GROUND0 && t < COVERED;
+export const groundTile = (t: number): GroundTile | undefined => GROUND_TILES[t - GROUND0];
+export const zoneTiles = (zone: number) => GROUND_TILES.flatMap((t, i) => (t.zone === zone ? [GROUND0 + i] : []));
+
+// ---------------------------------------------------------------- adjacency rules
 
 /** Relations between neighbouring variables. */
-export const REL_SAME = 0; // two voxels on the same level sharing a quad
-export const REL_IS = 1; // this var is an island top, neighbour is a ground-floor storey next to it
+export const REL_SAME = 0; // same level, sharing a quad, same kind (both buildings or both land)
+export const REL_IS = 1; // this var is open land, neighbour is a building storey standing next to it
 export const REL_SI = 2; // reverse of REL_IS
 export const revRel = (r: number) => (r === REL_IS ? REL_SI : r === REL_SI ? REL_IS : r);
 
-/** Adjacency rules ("sockets"). `a` is this variable's tile, `b` the neighbour's. */
+/** Pairs of land tiles that may not sit next to each other. */
+const FORBIDDEN_PAIRS: [string, string][] = [
+  ['tree', 'tree'], // lone meadow trees need room
+  ['clearing', 'clearing'], // woods stay woods
+  ['pines', 'oaks'], // forests grow in stands; groves blend between them
+  ['fountain', 'fountain'],
+  ['fountain', 'market'],
+  ['lamp', 'lamp'],
+  ['boat', 'boat'],
+  ['rock', 'rock'],
+];
+const forbidden = new Set<number>();
+for (const [a, b] of FORBIDDEN_PAIRS) {
+  forbidden.add(T[a] * N_TILES + T[b]);
+  forbidden.add(T[b] * N_TILES + T[a]);
+}
+
+/** Land tiles that would block a door or shopfront. */
+const BLOCKS_DOOR = new Set(['tree', 'fountain', 'market', 'planter'].map((n) => T[n]));
+
+/** `a` is this variable's tile, `b` the neighbour's. */
 export function compat(rel: number, a: number, b: number): boolean {
   if (rel === REL_SI) return compat(REL_IS, b, a);
   if (rel === REL_IS) {
-    if (!isIsland(a) || !isStorey(b)) return true;
+    if (!isGroundTile(a) || !isStorey(b)) return true;
     const f = decodeStorey(b).feat;
-    // Doors and shopfronts never open straight into a tree.
-    if ((f === F_DOOR || f === F_SHOP) && decodeIsland(a) === G_TREE) return false;
-    return true;
+    return !((f === F_DOOR || f === F_SHOP) && BLOCKS_DOOR.has(a));
   }
-  // REL_SAME
   if (isStorey(a) && isStorey(b)) {
     const A = decodeStorey(a);
     const B = decodeStorey(b);
@@ -65,15 +140,10 @@ export function compat(rel: number, a: number, b: number): boolean {
     if (A.feat === F_DOOR && B.feat === F_DOOR) return false;
     return true;
   }
-  if (isIsland(a) && isIsland(b)) {
-    // Trees need a bit of room.
-    if (decodeIsland(a) === G_TREE && decodeIsland(b) === G_TREE) return false;
-    return true;
-  }
+  if (isGroundTile(a) && isGroundTile(b)) return !forbidden.has(a * N_TILES + b);
   return true;
 }
 
 export const WIN_WEIGHT = [1.4, 1.0, 0.7];
 export const FEAT_WEIGHT = [2.2, 1.6, 1.3, 1.4, 3.0, 1.2];
 export const ROOF_WEIGHT = [1, 3, 2.2, 1];
-export const GROUND_WEIGHT = [2.5, 1.2, 1.4, 0.4, 0.5];

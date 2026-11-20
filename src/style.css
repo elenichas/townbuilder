@@ -152,6 +152,12 @@ body {
   border-radius: 50% !important;
   box-shadow: inset 0 0 0 1px rgba(61, 58, 79, 0.15);
 }
+.swatch.zone {
+  border-radius: 8px !important;
+}
+.group[hidden] {
+  display: none;
+}
 .swatch.active {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink);
 }

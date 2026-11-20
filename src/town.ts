@@ -1,6 +1,11 @@
 /**
- * Town state: which voxels are filled, their paint colour, seed and chosen tile.
- * Also the bridge between the town and the WFC solver (it implements `Csp`).
+ * Town state: which voxels are filled, what kind they are (building or a land type),
+ * their paint colour, seed and chosen tile. Also the bridge between the town and the
+ * WFC solver (it implements `Csp`).
+ *
+ * Land is stacked in solid columns from level 0 up: the top of a column is the
+ * ground surface, so a column two voxels high is a hill. Buildings sit on top of
+ * land (or float, as bridges and overhangs).
  */
 import type { Grid } from './grid';
 import { hash32, randomSeed } from './rng';
@@ -13,10 +18,7 @@ import {
   F_SHOP,
   F_SHUTTERS,
   FEAT_WEIGHT,
-  G_PLAZA,
-  G_POND,
-  GROUND,
-  GROUND_WEIGHT,
+  KIND_BUILDING,
   R_FLAT,
   R_HIP,
   R_NONE,
@@ -25,31 +27,41 @@ import {
   REL_SAME,
   REL_SI,
   ROOF_WEIGHT,
+  T,
   W_ARCH,
   W_ROUND,
   W_SQUARE,
   WIN_WEIGHT,
+  ZONE_MEADOW,
+  ZONE_WATER,
+  ZONE_WOODS,
   compat,
-  decodeIsland,
   decodeStorey,
-  islandTile,
-  isIsland,
+  groundTile,
+  isGroundTile,
+  isZone,
   storeyTile,
+  zoneTiles,
 } from './tiles';
 import { type Csp, type Nb, solve } from './wfc';
 
 export const MAX_LEVEL = 14;
+/** Highest level land can be raised to. */
+export const MAX_HILL = 5;
 export const key = (v: number, k: number) => v * 32 + k;
 export const keyV = (key: number) => key >> 5;
 export const keyK = (key: number) => key & 31;
 
 export interface Voxel {
+  /** KIND_BUILDING or a ZONE_* land type. */
+  kind: number;
   color: number;
   seed: number;
   tile: number;
 }
 
-/** What an edit changed: `fill` = voxels added/removed, `look` = voxels whose tile or colour changed. */
+/** What an edit changed: `fill` = voxels added/removed or whose land type changed
+ *  (neighbour geometry depends on these), `look` = voxels whose tile or colour changed. */
 export interface Change {
   fill: Set<number>;
   look: Set<number>;
@@ -67,11 +79,39 @@ export class Town implements Csp {
   }
 
   get(v: number, k: number): Voxel | undefined {
-    return this.cells.get(key(v, k));
+    return k >= 0 ? this.cells.get(key(v, k)) : undefined;
   }
 
-  canPlace(v: number, k: number): boolean {
-    return v >= 0 && k >= 0 && k <= MAX_LEVEL && this.grid.buildable[v] && !this.has(v, k);
+  kindAt(v: number, k: number): number {
+    return this.get(v, k)?.kind ?? -1;
+  }
+
+  isGround(v: number, k: number): boolean {
+    return isZone(this.kindAt(v, k));
+  }
+
+  isBuilding(v: number, k: number): boolean {
+    return this.kindAt(v, k) === KIND_BUILDING;
+  }
+
+  /** Level of the top of the solid land column at `v`, or -1 if there is no land. */
+  groundTop(v: number): number {
+    let k = -1;
+    while (this.isGround(v, k + 1)) k++;
+    return k;
+  }
+
+  /** Land at `v` whose surface is open to the sky (nothing built on it). */
+  openGround(v: number): { level: number; zone: number } | null {
+    const g = this.groundTop(v);
+    if (g < 0 || this.has(v, g + 1)) return null;
+    return { level: g, zone: this.kindAt(v, g) };
+  }
+
+  canPlace(v: number, k: number, kind = KIND_BUILDING): boolean {
+    if (v < 0 || k < 0 || k > MAX_LEVEL || !this.grid.buildable[v] || this.has(v, k)) return false;
+    if (kind === KIND_BUILDING) return k >= 1;
+    return k === 0 || (k <= MAX_HILL && this.isGround(v, k - 1));
   }
 
   // ---------- CSP interface ----------
@@ -84,70 +124,82 @@ export class Town implements Csp {
     return compat(rel, a, b);
   }
 
-  /** True if an edge-neighbour of `v` is an open island with nothing built on it. */
-  private hasOpenGroundNeighbour(v: number): boolean {
-    return this.grid.edgeNbrs[v].some((n) => this.has(n, 0) && !this.has(n, 1));
+  /** Is the open land at `n` level `lvl` water? */
+  private isOpenWater(n: number, lvl: number): boolean {
+    return this.kindAt(n, lvl) === ZONE_WATER && !this.has(n, lvl + 1);
   }
 
-  allowed(k: number): number[] {
-    const v = keyV(k);
-    const lvl = keyK(k);
+  /** Can a storey at (v, k) have a door or shop: it stands on land and faces open, walkable land. */
+  private canFront(v: number, k: number): boolean {
+    if (!this.isGround(v, k - 1)) return false;
+    return this.grid.edgeNbrs[v].some((n) => {
+      const z = this.kindAt(n, k - 1);
+      return isZone(z) && !this.has(n, k) && z !== ZONE_WATER && z !== ZONE_WOODS;
+    });
+  }
+
+  allowed(kk: number): number[] {
+    const v = keyV(kk);
+    const lvl = keyK(kk);
     const g = this.grid;
-    if (lvl === 0) {
-      if (this.has(v, 1)) return [COVERED];
-      const nearStorey = g.edgeNbrs[v].some((n) => this.has(n, 1));
-      const out: number[] = [];
-      for (let gi = 0; gi < GROUND.length; gi++) {
-        if (gi === G_POND && nearStorey) continue; // no ponds against walls
-        out.push(islandTile(gi));
+    const kind = this.kindAt(v, lvl);
+    if (isZone(kind)) {
+      if (this.has(v, lvl + 1)) return [COVERED];
+      let tiles = zoneTiles(kind);
+      if (kind === ZONE_WATER) {
+        const shore = g.edgeNbrs[v].some((n) => !this.isOpenWater(n, lvl));
+        tiles = tiles.filter((t) => (t === T.reeds ? shore : t === T.boat ? !shore : true));
       }
-      return out;
+      return tiles;
     }
     const top = !this.has(v, lvl + 1);
-    const sideCount = g.edgeNbrs[v].filter((n) => this.has(n, lvl)).length;
+    const sideCount = g.edgeNbrs[v].filter((n) => this.isBuilding(n, lvl)).length;
     const hasWall = sideCount < g.edgeNbrs[v].length;
-    const canFront = lvl === 1 && this.has(v, 0) && this.hasOpenGroundNeighbour(v);
+    const front = this.canFront(v, lvl);
 
     const roofs = top ? [R_HIP, R_FLAT, ...(sideCount <= 1 ? [R_STEEP] : [])] : [R_NONE];
     const wins = lvl >= 2 ? [W_SQUARE, W_ARCH, W_ROUND] : [W_SQUARE, W_ARCH];
     const feats = !hasWall
       ? [F_PLAIN]
-      : [F_PLAIN, F_SHUTTERS, F_FLOWERS, ...(lvl >= 2 ? [F_BALCONY] : []), ...(canFront ? [F_DOOR, F_SHOP] : [])];
+      : [F_PLAIN, F_SHUTTERS, F_FLOWERS, ...(lvl >= 2 ? [F_BALCONY] : []), ...(front ? [F_DOOR, F_SHOP] : [])];
     const out: number[] = [];
     for (const w of wins) for (const f of feats) for (const r of roofs) out.push(storeyTile(w, f, r));
     return out;
   }
 
-  weight(k: number, t: number): number {
+  weight(_k: number, t: number): number {
     if (t === COVERED) return 1;
-    if (isIsland(t)) {
-      const gi = decodeIsland(t);
-      if (gi === G_PLAZA) return this.grid.edgeNbrs[keyV(k)].some((n) => this.has(n, 1)) ? 3 : 0.4;
-      return GROUND_WEIGHT[gi];
-    }
+    if (isGroundTile(t)) return groundTile(t)!.weight;
     const s = decodeStorey(t);
     return WIN_WEIGHT[s.win] * FEAT_WEIGHT[s.feat] * ROOF_WEIGHT[s.roof];
   }
 
-  neighbors(k: number): Nb[] {
-    const v = keyV(k);
-    const lvl = keyK(k);
+  neighbors(kk: number): Nb[] {
+    const v = keyV(kk);
+    const lvl = keyK(kk);
     const out: Nb[] = [];
-    for (const u of this.grid.quadMates[v]) if (this.has(u, lvl)) out.push({ key: key(u, lvl), rel: REL_SAME });
-    if (lvl === 0 && !this.has(v, 1)) {
-      for (const u of this.grid.edgeNbrs[v]) if (this.has(u, 1)) out.push({ key: key(u, 1), rel: REL_IS });
-    } else if (lvl === 1) {
-      for (const u of this.grid.edgeNbrs[v]) if (this.has(u, 0) && !this.has(u, 1)) out.push({ key: key(u, 0), rel: REL_SI });
+    const ground = this.isGround(v, lvl);
+    for (const u of this.grid.quadMates[v]) {
+      if (this.has(u, lvl) && this.isGround(u, lvl) === ground) out.push({ key: key(u, lvl), rel: REL_SAME });
+    }
+    if (ground) {
+      if (!this.has(v, lvl + 1)) {
+        for (const u of this.grid.edgeNbrs[v]) if (this.isBuilding(u, lvl + 1)) out.push({ key: key(u, lvl + 1), rel: REL_IS });
+      }
+    } else {
+      for (const u of this.grid.edgeNbrs[v]) {
+        if (this.isGround(u, lvl - 1) && !this.has(u, lvl)) out.push({ key: key(u, lvl - 1), rel: REL_SI });
+      }
     }
     return out;
   }
 
   // ---------- editing ----------
 
-  add(v: number, k: number, color: number, seed = randomSeed()): Change | null {
-    if (!this.canPlace(v, k)) return null;
+  add(v: number, k: number, color: number, seed = randomSeed(), kind = KIND_BUILDING): Change | null {
+    if (!this.canPlace(v, k, kind)) return null;
     const kk = key(v, k);
-    this.cells.set(kk, { color, seed, tile: -1 });
+    this.cells.set(kk, { kind, color, seed, tile: -1 });
     const ch: Change = { fill: new Set([kk]), look: new Set([kk]) };
     this.resolve([kk], ch);
     return ch;
@@ -156,8 +208,21 @@ export class Town implements Csp {
   remove(v: number, k: number): Change | null {
     const kk = key(v, k);
     if (!this.cells.has(kk)) return null;
+    // Land columns stay solid: only the top of a column can be dug away.
+    if (this.isGround(v, k) && this.isGround(v, k + 1)) return null;
     this.cells.delete(kk);
     const ch: Change = { fill: new Set([kk]), look: new Set() };
+    this.resolve([kk], ch);
+    return ch;
+  }
+
+  /** Change the land type (meadow, woods, square, water) of a land voxel. */
+  setZone(v: number, k: number, zone: number): Change | null {
+    const kk = key(v, k);
+    const cell = this.cells.get(kk);
+    if (!cell || !isZone(cell.kind) || !isZone(zone) || cell.kind === zone) return null;
+    cell.kind = zone;
+    const ch: Change = { fill: new Set([kk]), look: new Set([kk]) };
     this.resolve([kk], ch);
     return ch;
   }
@@ -177,7 +242,7 @@ export class Town implements Csp {
   paint(v: number, k: number, color: number): Change | null {
     const kk = key(v, k);
     const cell = this.cells.get(kk);
-    if (!cell || cell.color === color) return null;
+    if (!cell || cell.kind !== KIND_BUILDING || cell.color === color) return null;
     cell.color = color;
     return { fill: new Set(), look: new Set([kk]) };
   }
@@ -188,7 +253,7 @@ export class Town implements Csp {
     return ch;
   }
 
-  /** Re-solve the whole town (used after loading). */
+  /** Re-solve the whole town (used after loading or generating). */
   solveAll(): void {
     const all = new Set(this.cells.keys());
     const res = solve(this, all, () => undefined);
@@ -202,17 +267,20 @@ export class Town implements Csp {
   private baseRegion(edited: number[]): Set<number> {
     const R = new Set<number>();
     const g = this.grid;
+    const addAt = (u: number, j: number) => {
+      if (this.has(u, j)) R.add(key(u, j));
+    };
     for (const e of edited) {
       const v = keyV(e);
       const k = keyK(e);
       const U = new Set<number>([v, ...g.quadMates[v]]);
       for (const u of [...U]) for (const w of g.quadMates[u]) U.add(w);
-      const levels = new Set([k - 1, k, k + 1]);
-      if (k <= 2) {
-        levels.add(0);
-        levels.add(1);
+      for (const u of U) {
+        for (let j = k - 1; j <= k + 1; j++) addAt(u, j);
+        const gt = this.groundTop(u);
+        addAt(u, gt);
+        addAt(u, gt + 1);
       }
-      for (const u of U) for (const j of levels) if (this.has(u, j)) R.add(key(u, j));
     }
     return R;
   }
@@ -288,7 +356,7 @@ export class Town implements Csp {
     for (const k of new Set([...this.cells.keys(), ...snap.keys()])) {
       const a = this.cells.get(k);
       const b = snap.get(k);
-      if (!a || !b) ch.fill.add(k);
+      if (!a || !b || a.kind !== b.kind) ch.fill.add(k);
       else if (a.tile !== b.tile || a.color !== b.color) ch.look.add(k);
     }
     this.cells = new Map([...snap].map(([k, c]) => [k, { ...c }]));
@@ -297,26 +365,38 @@ export class Town implements Csp {
 
   serialize(): string {
     const parts: string[] = [];
-    for (const [k, c] of this.cells) parts.push(`${keyV(k).toString(36)}.${keyK(k).toString(36)}.${c.color.toString(36)}.${c.seed.toString(36)}`);
-    return 'c1:' + parts.join('_');
+    for (const [k, c] of this.cells) {
+      parts.push([keyV(k), keyK(k), c.color, c.seed, c.kind].map((x) => x.toString(36)).join('.'));
+    }
+    return 'c2:' + parts.join('_');
   }
 
-  /** Replace contents from `serialize()` output. Returns false if the data is invalid. */
+  /** Replace contents from `serialize()` output (current or older format). Returns false if invalid. */
   load(data: string): boolean {
-    if (!data.startsWith('c1:')) return false;
+    const version = data.slice(0, 3);
+    if (version !== 'c1:' && version !== 'c2:') return false;
     const cells = new Map<number, Voxel>();
     const body = data.slice(3);
     if (body) {
       for (const part of body.split('_')) {
-        const [v, k, c, s] = part.split('.').map((x) => parseInt(x, 36));
+        const nums = part.split('.').map((x) => parseInt(x, 36));
+        const [v, k, c, s] = nums;
         if ([v, k, c, s].some((x) => !Number.isFinite(x))) return false;
+        let kind = version === 'c1:' ? (k === 0 ? ZONE_MEADOW : KIND_BUILDING) : nums[4];
+        if (!Number.isFinite(kind) || (kind !== KIND_BUILDING && !isZone(kind))) kind = k === 0 ? ZONE_MEADOW : KIND_BUILDING;
         if (v < 0 || v >= this.grid.pos.length || !this.grid.buildable[v] || k < 0 || k > MAX_LEVEL) continue;
-        cells.set(key(v, k), { color: c, seed: s >>> 0, tile: -1 });
+        cells.set(key(v, k), { kind, color: c, seed: s >>> 0, tile: -1 });
       }
+    }
+    // Repair invalid stacks: land must rest on land, buildings never sit at level 0.
+    for (const [kk, c] of [...cells].sort((a, b) => keyK(a[0]) - keyK(b[0]))) {
+      const v = keyV(kk);
+      const k = keyK(kk);
+      if (isZone(c.kind) && k > 0 && !isZone(cells.get(key(v, k - 1))?.kind ?? -1)) c.kind = KIND_BUILDING;
+      if (c.kind === KIND_BUILDING && k === 0) c.kind = ZONE_MEADOW;
     }
     this.cells = cells;
     this.solveAll();
     return true;
   }
 }
-
