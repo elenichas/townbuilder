@@ -196,6 +196,26 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
   sea.visible = false;
   scene.add(sea);
 
+  // Sunlight glinting on the sea: two sets of sparkles that twinkle in turn and wander.
+  const glints = [0, 1].map(() => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(160 * 3), 3));
+    const mat = new THREE.PointsMaterial({ color: '#ffffff', size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false });
+    const pts = new THREE.Points(geo, mat);
+    pts.visible = false;
+    scene.add(pts);
+    return { pts, geo, mat, cycle: -1 };
+  });
+  const scatterGlints = (geo: THREE.BufferGeometry) => {
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 3 + Math.sqrt(Math.random()) * 45;
+      pos.setXYZ(i, Math.cos(a) * r, SEA_LEVEL + 0.01, Math.sin(a) * r);
+    }
+    pos.needsUpdate = true;
+  };
+
   // Birds.
   const birdMat = new THREE.MeshStandardMaterial({ color: '#f4f1ea', flatShading: true, side: THREE.DoubleSide });
   const wingGeo = new THREE.BufferGeometry();
@@ -268,6 +288,7 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
     setSea(on: boolean) {
       sea.visible = on;
       lowClouds.visible = !on;
+      glints.forEach((gl) => (gl.pts.visible = on));
     },
     setSky(top: string, mid: string, bottom: string) {
       DAY.top.set(top);
@@ -285,6 +306,17 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
         applyLook(night);
       }
       clouds.rotation.y = t * 0.004;
+      if (sea.visible) {
+        glints.forEach((gl, i) => {
+          const phase = t * 0.5 + i * Math.PI;
+          const cycle = Math.floor(phase / (Math.PI * 2));
+          if (cycle !== gl.cycle) {
+            gl.cycle = cycle;
+            scatterGlints(gl.geo);
+          }
+          gl.mat.opacity = 0.75 * Math.max(0, Math.sin(phase)) * (1 - night * 0.8);
+        });
+      }
       for (const b of birds) {
         const a = t * b.sp + b.ph;
         b.g.position.set(Math.cos(a) * b.rad, b.h + Math.sin(t * 0.7 + b.ph) * 0.4, Math.sin(a) * b.rad);

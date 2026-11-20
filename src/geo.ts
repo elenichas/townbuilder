@@ -13,7 +13,22 @@ const ICO = (() => {
   return Array.from(g.getAttribute('position').array as Float32Array);
 })();
 
+/** A moving part attached to a voxel: windmill sails that spin, boats that bob,
+ *  or a chimney that puffs smoke. Positions are in world space. */
+export interface AnimSpec {
+  kind: 'spin' | 'bob' | 'smoke';
+  pos: V3;
+  /** Rotation axis for 'spin'. */
+  axis?: V3;
+  speed?: number;
+  phase?: number;
+  /** Geometry of the moving part, built around `pos`. */
+  geometry?: THREE.BufferGeometry | null;
+}
+
 export class Geo {
+  /** Moving parts collected while building. */
+  anims: AnimSpec[] = [];
   private p: number[][] = [[], [], []];
   private c: number[][] = [[], [], []];
   private a: number[][] = [[], [], []];

@@ -8,7 +8,7 @@
  * and the facade details (windows, doors, shops, balconies) its tile asks for.
  */
 import * as THREE from 'three';
-import { Geo, MAT_BASE, MAT_DARK, MAT_LIT, type V3 } from './geo';
+import { type AnimSpec, Geo, MAT_BASE, MAT_DARK, MAT_LIT, type V3 } from './geo';
 import type { Quarter, Vec2 } from './grid';
 import { LAND, type LandPalette, MODE_ISLAND, MODE_MOUNTAIN, SEA_LEVEL } from './modes';
 import { AWNING, COL, FLOWER, SHUTTER, WALL, mix, shade } from './palette';
@@ -136,7 +136,7 @@ const LAMP = new THREE.Color('#ffe3a3');
 const BRICK = new THREE.Color('#b8604c');
 const ROOF_HIP = [COL.roofHip, new THREE.Color('#c25b4c'), new THREE.Color('#dc8b52')];
 
-export function buildVoxel(town: Town, kk: number): { geometry: THREE.BufferGeometry; origin: V3 } | null {
+export function buildVoxel(town: Town, kk: number): { geometry: THREE.BufferGeometry; origin: V3; anims: AnimSpec[] } | null {
   const cell = town.cells.get(kk);
   if (!cell) return null;
   const v = keyV(kk);
@@ -147,7 +147,7 @@ export function buildVoxel(town: Town, kk: number): { geometry: THREE.BufferGeom
   if (isZone(cell.kind)) buildGround(town, v, k, cell, g);
   else buildStorey(town, v, k, cell, g);
   const geometry = g.build();
-  return geometry ? { geometry, origin } : null;
+  return geometry ? { geometry, origin, anims: g.anims } : null;
 }
 
 // ---------------------------------------------------------------- building looks
@@ -436,6 +436,7 @@ function buildStorey(town: Town, v: number, k: number, cell: Voxel, g: Geo) {
       g.box(x, z, 0.04, 0.04, y1, y1 + 0.2, look.wall);
       g.box(x, z, 0.065, 0.065, y1 + 0.2, y1 + 0.225, look.wall);
       g.box(x, z, 0.02, 0.066, y1 + 0.165, y1 + 0.2, SHADOW);
+      if (hash01(seed, 45) < 0.5) g.anims.push({ kind: 'smoke', pos: [x, y1 + 0.23, z], phase: hash01(seed, 46) });
     } else if (look.style !== STYLE_MOUNTAIN && r < 0.75) {
       if (r < 0.55 || look.style === STYLE_ISLAND) {
         g.cylinder(P0.x, P0.z, y1, y1 + 0.08, 0.05, 6, look.style === STYLE_ISLAND ? TERRACOTTA : COL.wood, 0.06);
@@ -495,6 +496,8 @@ function buildStorey(town: Town, v: number, k: number, cell: Voxel, g: Geo) {
         g.box(x, z, 0.055, 0.055, y1, y1 + ridge + 0.2, shade(STONE_WALL, 0.9));
         g.cylinder(x, z, y1 + ridge + 0.2, y1 + ridge + 0.28, 0.09, 4, rc, 0, false);
       } else g.box(x, z, 0.045, 0.045, y1, y1 + ridge + 0.12, BRICK, shade(BRICK, 0.7));
+      // About half the chimneys have a fire going.
+      if (hash01(seed, 45) < 0.55) g.anims.push({ kind: 'smoke', pos: [x, y1 + ridge + (slate ? 0.3 : 0.14), z], phase: hash01(seed, 46) });
     }
     if (st.roof === R_STEEP && sideCount === 0 && !slate) {
       const yt = y1 + ridge;
@@ -699,6 +702,9 @@ function drawMillCap(g: Geo, qs: Quarter[], y1: number, seed: number, look: Look
   const hub: V3 = [P0.x + dir.x * rad * 1.05, y1 + 0.17, P0.z + dir.z * rad * 1.05];
   const p = (r: number, phi: number): V3 => [hub[0] + perp.x * Math.cos(phi) * r, hub[1] + Math.sin(phi) * r, hub[2] + perp.z * Math.cos(phi) * r];
   const spin = hash01(seed, 71) * 0.6;
+  // The sails are a separate part that turns in the wind (see view.ts).
+  const main = g;
+  g = new Geo(...hub);
   for (let i = 0; i < 8; i++) {
     const phi = (i * Math.PI) / 4 + spin;
     const e = p(0.68, phi);
@@ -714,6 +720,7 @@ function drawMillCap(g: Geo, qs: Quarter[], y1: number, seed: number, look: Look
     g.tri(p(0.16, phi), p(0.66, phi), p(0.6, phi + 0.36), SAIL);
   }
   g.blob(hub[0], hub[1], hub[2], 0.045, WOOD_DARK);
+  main.anims.push({ kind: 'spin', pos: hub, axis: [dir.x, 0, dir.z], speed: 0.45 + 0.35 * hash01(seed, 72), phase: hash01(seed, 73) * 6.28, geometry: g.build() });
 }
 
 // ---------------------------------------------------------------- terrain
@@ -1218,6 +1225,8 @@ function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt,
       }
       break;
     case T.boat: {
+      const main = g;
+      g = new Geo(P0.x, cy, P0.z);
       const a = hash01(seed, 80) * Math.PI;
       const ca = Math.cos(a) * 0.17;
       const sa = Math.sin(a) * 0.17;
@@ -1236,6 +1245,8 @@ function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt,
       g.poly(top, shade(COL.wood, 1.25));
       g.cylinder(cx, cz, cy + 0.05, cy + 0.36, 0.008, 4, COL.trunk);
       g.tri([cx, cy + 0.36, cz], [cx, cy + 0.1, cz], [cx + ca * 0.8, cy + 0.1, cz + sa * 0.8], COL.trim);
+      main.anims.push({ kind: 'bob', pos: [P0.x, cy, P0.z], phase: hash01(seed, 81) * 6.28, geometry: g.build() });
+      g = main;
       break;
     }
     case T.rock: {
@@ -1358,9 +1369,12 @@ function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt,
       tuft(8, SCRUB);
       break;
     // Harbour: a caique (wooden fishing boat) moored by the quay.
-    case T.caique:
-      caique(g, P0.x, cy, P0.z, hash01(seed, 95) * Math.PI, HULL[hash32(seed, 96) % HULL.length]);
+    case T.caique: {
+      const sub = new Geo(P0.x, cy, P0.z);
+      caique(sub, P0.x, cy, P0.z, hash01(seed, 95) * Math.PI, HULL[hash32(seed, 96) % HULL.length]);
+      g.anims.push({ kind: 'bob', pos: [P0.x, cy, P0.z], phase: hash01(seed, 97) * 6.28, geometry: sub.build() });
       break;
+    }
     // Streets.
     case T.lane_pots:
       for (let j = 0; j < 3; j++) {

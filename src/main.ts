@@ -535,7 +535,7 @@ function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   updateHover();
-  view.tick(now);
+  view.tick(now, dt);
   puffs.tick(now, dt);
   (grid3d.material as THREE.LineBasicMaterial).opacity = GRID_OPACITY * (town.mode === MODE_ISLAND ? 0.45 : 1) * (1 - 0.65 * ctx.nightness());
   ctx.tick(dt, now / 1000);

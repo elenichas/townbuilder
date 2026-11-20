@@ -23,6 +23,9 @@ export class TownView {
   private meshes = new Map<number, THREE.Mesh>();
   private anims = new Map<THREE.Mesh, Anim>();
   private mats: THREE.Material[];
+  /** Voxel meshes that carry moving parts (sails, boats) or smoking chimneys. */
+  private living = new Set<THREE.Mesh>();
+  private smoke: Smoke;
 
   constructor(
     private town: Town,
@@ -33,6 +36,7 @@ export class TownView {
     const dark = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.35, side: THREE.DoubleSide });
     this.mats = [base, litGlass, dark];
     scene.add(this.group, this.dying);
+    this.smoke = new Smoke(scene);
   }
 
   rebuildAll() {
@@ -73,6 +77,27 @@ export class TownView {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData.key = k;
+    // Moving parts become children, so they pop in, scale and disappear with their voxel.
+    const parts: THREE.Mesh[] = [];
+    const smoke: THREE.Vector3[] = [];
+    for (const a of res.anims) {
+      const local = new THREE.Vector3(a.pos[0] - res.origin[0], a.pos[1] - res.origin[1], a.pos[2] - res.origin[2]);
+      if (a.kind === 'smoke') {
+        smoke.push(local);
+        continue;
+      }
+      if (!a.geometry) continue;
+      const part = new THREE.Mesh(a.geometry, this.mats);
+      part.position.copy(local);
+      part.castShadow = true;
+      part.userData.anim = { ...a, base: local.clone(), axis: new THREE.Vector3(...(a.axis ?? [0, 1, 0])).normalize() };
+      mesh.add(part);
+      parts.push(part);
+    }
+    mesh.userData.parts = parts;
+    mesh.userData.smoke = smoke;
+    mesh.userData.smokeClock = Math.random() * 2;
+    if (parts.length || smoke.length) this.living.add(mesh);
     this.group.add(mesh);
     this.meshes.set(k, mesh);
     if (pop) this.anims.set(mesh, { mesh, t0: performance.now(), kind: 'in' });
@@ -94,6 +119,8 @@ export class TownView {
 
   private disposeMesh(m: THREE.Mesh) {
     m.geometry.dispose();
+    for (const p of (m.userData.parts as THREE.Mesh[] | undefined) ?? []) p.geometry.dispose();
+    this.living.delete(m);
   }
 
   private tickOne(a: Anim, now: number): boolean {
@@ -112,8 +139,71 @@ export class TownView {
     return p >= 1;
   }
 
-  tick(now: number) {
+  tick(now: number, dt = 1 / 60) {
     for (const [m, a] of this.anims) if (this.tickOne(a, now)) this.anims.delete(m);
+    const t = now / 1000;
+    const world = new THREE.Vector3();
+    for (const mesh of this.living) {
+      for (const part of mesh.userData.parts as THREE.Mesh[]) {
+        const a = part.userData.anim;
+        if (a.kind === 'spin') {
+          // Windmill sails turning slowly in the meltemi.
+          part.quaternion.setFromAxisAngle(a.axis, t * a.speed + a.phase);
+        } else if (a.kind === 'bob') {
+          // Boats bobbing and rocking on the water.
+          const p = a.phase ?? 0;
+          part.position.y = a.base.y + Math.sin(t * 1.4 + p) * 0.012;
+          part.rotation.set(Math.sin(t * 1.1 + p) * 0.045, 0, Math.sin(t * 0.9 + p * 1.7) * 0.06);
+        }
+      }
+      // Chimney smoke: a soft puff every couple of seconds.
+      const smoke = mesh.userData.smoke as THREE.Vector3[];
+      if (smoke.length && mesh.parent === this.group) {
+        mesh.userData.smokeClock -= dt;
+        if (mesh.userData.smokeClock <= 0) {
+          mesh.userData.smokeClock = 1.4 + Math.random() * 1.4;
+          for (const p of smoke) this.smoke.emit(world.copy(p).add(mesh.position));
+        }
+      }
+    }
+    this.smoke.tick(dt);
+  }
+}
+
+/** Pool of soft smoke puffs that rise, drift with the breeze and fade. */
+class Smoke {
+  private pool: { m: THREE.Mesh; mat: THREE.MeshStandardMaterial; age: number; life: number; vel: THREE.Vector3 }[] = [];
+  private geo = new THREE.IcosahedronGeometry(1, 0);
+
+  constructor(private scene: THREE.Scene) {}
+
+  emit(at: THREE.Vector3) {
+    let p = this.pool.find((x) => x.age >= x.life);
+    if (!p) {
+      if (this.pool.length >= 140) return;
+      const mat = new THREE.MeshStandardMaterial({ color: '#efeeea', flatShading: true, transparent: true, depthWrite: false, roughness: 1 });
+      const m = new THREE.Mesh(this.geo, mat);
+      this.scene.add(m);
+      p = { m, mat, age: 0, life: 1, vel: new THREE.Vector3() };
+      this.pool.push(p);
+    }
+    p.age = 0;
+    p.life = 3 + Math.random() * 1.5;
+    p.m.position.copy(at);
+    p.vel.set(0.06 + Math.random() * 0.04, 0.22 + Math.random() * 0.06, 0.03 * (Math.random() - 0.5));
+    p.m.visible = true;
+  }
+
+  tick(dt: number) {
+    for (const p of this.pool) {
+      if (p.age >= p.life) continue;
+      p.age += dt;
+      const k = Math.min(1, p.age / p.life);
+      p.m.position.addScaledVector(p.vel, dt);
+      p.m.scale.setScalar(0.05 + 0.15 * k);
+      p.mat.opacity = 0.75 * Math.sin(Math.PI * Math.min(1, k * 1.2)) * (1 - k * 0.6);
+      if (p.age >= p.life) p.m.visible = false;
+    }
   }
 }
 

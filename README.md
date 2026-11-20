@@ -27,7 +27,7 @@ The two Greek building styles are drawn from the vernacular architecture of the 
 - **Restyle anything.** Ask for a different version of any piece; its neighbours adapt so everything still fits.
 - **Shape the land.** Paint meadow, woods, town squares or water, and click again to raise smooth hills. Lakes settle into basins with natural shorelines.
 - **A town that decides the details.** Doors open onto squares, roofs join up, forests grow in stands, reeds line the shore, and boats drift in open water.
-- **Day and night**, with glowing windows and lamps, drifting clouds, birds and gentle generated sound.
+- **A living town**: windmill sails turn in the wind, caiques and rowing boats bob at their moorings, chimneys puff smoke, and the sun glints on the Aegean. There's also day and night with glowing windows and lamps, drifting clouds, birds and gentle generated sound.
 - **Undo/redo, share links** (the whole town is packed into the URL), **"Surprise me"** villages and a picture button. Every visit, mode switch and **Start building** begins with an empty scene; Undo brings the previous town back, and a share link keeps a town for later.
 - **Greek island and mountain villages.** Build in a whitewashed Cycladic style (flat roofs, vaults, chapels with painted domes, windmills, bougainvillea) or a stone mountain style (slate roofs, wooden bays, stone bridges, Mani towers), or mix them in one town.
 - **Mediterranean land.** Olive groves with cypresses and dry-stone walls, rocky hillsides with thyme, goats and roadside shrines, and village squares shaded by a plane tree.
