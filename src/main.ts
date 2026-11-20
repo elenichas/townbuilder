@@ -7,6 +7,7 @@ import { cellAt, generateGrid } from './grid';
 import { WALL_HEX } from './palette';
 import { mulberry32, randomSeed } from './rng';
 import { createScene } from './scene';
+import { type HelpTab, initHelp } from './help';
 import { decode, encode } from './share';
 import { KIND_BUILDING, ZONES, ZONE_MEADOW, ZONE_WATER, isZone } from './tiles';
 import { type Change, Town, type Voxel, key, keyK, keyV } from './town';
@@ -401,33 +402,13 @@ $('sound').addEventListener('click', () => {
 });
 syncSound();
 
-function toggleHelp(show: boolean, tab?: 'play' | 'works') {
+const help = initHelp();
+function toggleHelp(show: boolean, tab?: HelpTab) {
   $('help').classList.toggle('hidden', !show);
-  if (tab) selectHelpTab(tab);
+  if (tab) help.select(tab);
   if (show) $('helpClose').focus();
+  else help.pause();
 }
-
-function selectHelpTab(tab: 'play' | 'works') {
-  const works = tab === 'works';
-  for (const [btn, panel, on] of [
-    ['tabPlay', 'panelPlay', !works],
-    ['tabWorks', 'panelWorks', works],
-  ] as const) {
-    $(btn).setAttribute('aria-selected', String(on));
-    $(btn).tabIndex = on ? 0 : -1;
-    $(panel).hidden = !on;
-  }
-  $(works ? 'panelWorks' : 'panelPlay').scrollTop = 0;
-}
-$('tabPlay').addEventListener('click', () => selectHelpTab('play'));
-$('tabWorks').addEventListener('click', () => selectHelpTab('works'));
-document.querySelector('.tabs')!.addEventListener('keydown', (e) => {
-  const k = (e as KeyboardEvent).key;
-  if (k !== 'ArrowLeft' && k !== 'ArrowRight') return;
-  const toWorks = $('tabPlay').getAttribute('aria-selected') === 'true';
-  selectHelpTab(toWorks ? 'works' : 'play');
-  $(toWorks ? 'tabWorks' : 'tabPlay').focus();
-});
 $('helpBtn').addEventListener('click', () => toggleHelp(true, 'play'));
 $('helpClose').addEventListener('click', () => toggleHelp(false));
 $('helpSurprise').addEventListener('click', () => {

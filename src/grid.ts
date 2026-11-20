@@ -57,12 +57,17 @@ function area2(P: Vec2[], q: number[]): number {
   return s;
 }
 
-export function generateGrid(rings = 9, seed = 7, edge = 2, relaxIterations = 80): Grid {
+export type GridStage = 'triangles' | 'merged' | 'subdivided' | 'relaxed';
+/** Optional observer for each construction step (used by the in-game explainer diagrams). */
+export type StageObserver = (stage: GridStage, pts: Vec2[], polys: number[][]) => void;
+
+export function generateGrid(rings = 9, seed = 7, edge = 2, relaxIterations = 80, onStage?: StageObserver): Grid {
+  const snap = (stage: GridStage, polys: number[][]) => onStage?.(stage, P.map((p) => ({ ...p })), polys.map((q) => [...q]));
   const rand = mulberry32(seed);
+  const P: Vec2[] = [];
 
   // 1. Triangular lattice inside a hexagon.
   const ids = new Map<string, number>();
-  const P: Vec2[] = [];
   for (let q = -rings; q <= rings; q++) {
     for (let r = -rings; r <= rings; r++) {
       if (Math.abs(q + r) > rings) continue;
@@ -82,6 +87,8 @@ export function generateGrid(rings = 9, seed = 7, edge = 2, relaxIterations = 80
       if (b !== undefined && d !== undefined && c !== undefined) tris.push([b, d, c]);
     }
   }
+
+  snap('triangles', tris);
 
   // 2. Random triangle-pair merging.
   const edgeTris = new Map<number, number[]>();
@@ -122,6 +129,7 @@ export function generateGrid(rings = 9, seed = 7, edge = 2, relaxIterations = 80
     }
   }
   for (const poly of polys) if (area2(P, poly) < 0) poly.reverse();
+  snap('merged', polys);
 
   // 3. Subdivide into quads.
   const polyEdgeCount = new Map<number, number>();
@@ -158,6 +166,7 @@ export function generateGrid(rings = 9, seed = 7, edge = 2, relaxIterations = 80
     }
   }
   for (const q of quads) if (area2(P, q) < 0) q.reverse();
+  snap('subdivided', quads);
 
   const boundary = new Array<boolean>(P.length).fill(false);
   for (const poly of polys) {
@@ -216,6 +225,8 @@ export function generateGrid(rings = 9, seed = 7, edge = 2, relaxIterations = 80
       P[v].z += (0.5 * fz[v]) / cnt[v];
     }
   }
+
+  snap('relaxed', quads);
 
   // 5. Adjacency and dual cells.
   const vertQuads: number[][] = P.map(() => []);
