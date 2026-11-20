@@ -41,12 +41,14 @@ import {
   W_SQUARE,
   WIN_WEIGHT,
   ZONE_MEADOW,
+  ZONE_PLAZA,
+  ZONE_ROAD,
   ZONE_WATER,
-  ZONE_WOODS,
   compat,
   decodeStorey,
   groundTile,
   isGroundTile,
+  isWalkableZone,
   isZone,
   storeyTile,
   zoneTiles,
@@ -79,8 +81,14 @@ export interface Change {
 
 const COMPONENT_CAP = 240;
 
+/** World mode: how the whole town looks and what "Surprise me" grows. */
+export const MODE_PASTEL = 0;
+export const MODE_ISLAND = 1;
+export const MODE_MOUNTAIN = 2;
+
 export class Town implements Csp {
   cells = new Map<number, Voxel>();
+  mode = MODE_PASTEL;
 
   constructor(readonly grid: Grid) {}
 
@@ -146,10 +154,7 @@ export class Town implements Csp {
   /** Can a storey at (v, k) have a door or shop: it stands on land and faces open, walkable land. */
   private canFront(v: number, k: number): boolean {
     if (!this.isGround(v, k - 1)) return false;
-    return this.grid.edgeNbrs[v].some((n) => {
-      const z = this.kindAt(n, k - 1);
-      return isZone(z) && !this.has(n, k) && z !== ZONE_WATER && z !== ZONE_WOODS;
-    });
+    return this.grid.edgeNbrs[v].some((n) => isWalkableZone(this.kindAt(n, k - 1)) && !this.has(n, k));
   }
 
   allowed(kk: number): number[] {
@@ -162,7 +167,12 @@ export class Town implements Csp {
       let tiles = zoneTiles(kind);
       if (kind === ZONE_WATER) {
         const shore = g.edgeNbrs[v].some((n) => !this.isOpenWater(n, lvl));
-        tiles = tiles.filter((t) => (t === T.reeds ? shore : t === T.boat ? !shore : true));
+        // A quay: paved land (a square or street) right next to the water at the same level.
+        const quay = g.edgeNbrs[v].some((n) => {
+          const z = this.kindAt(n, lvl);
+          return (z === ZONE_PLAZA || z === ZONE_ROAD) && !this.has(n, lvl + 1);
+        });
+        tiles = tiles.filter((t) => (t === T.reeds ? shore && !quay : t === T.boat ? !shore : t === T.caique ? quay : true));
       }
       return tiles;
     }
@@ -423,15 +433,22 @@ export class Town implements Csp {
     for (const [k, c] of this.cells) {
       parts.push([keyV(k), keyK(k), c.color, c.seed, c.kind, c.style ?? 0].map((x) => x.toString(36)).join('.'));
     }
-    return 'c2:' + parts.join('_');
+    return `c3:${this.mode}|` + parts.join('_');
   }
 
   /** Replace contents from `serialize()` output (current or older format). Returns false if invalid. */
   load(data: string): boolean {
-    const version = data.slice(0, 3);
-    if (version !== 'c1:' && version !== 'c2:') return false;
+    let version = data.slice(0, 3);
+    if (version !== 'c1:' && version !== 'c2:' && version !== 'c3:') return false;
+    let body = data.slice(3);
+    let mode = MODE_PASTEL;
+    if (version === 'c3:') {
+      const bar = body.indexOf('|');
+      mode = Math.max(0, Math.min(MODE_MOUNTAIN, parseInt(body.slice(0, bar), 10) || 0));
+      body = body.slice(bar + 1);
+      version = 'c2:';
+    }
     const cells = new Map<number, Voxel>();
-    const body = data.slice(3);
     if (body) {
       for (const part of body.split('_')) {
         const nums = part.split('.').map((x) => parseInt(x, 36));
@@ -453,6 +470,7 @@ export class Town implements Csp {
       if (c.kind === KIND_BUILDING) c.style ??= STYLE_PASTEL;
     }
     this.cells = cells;
+    this.mode = mode;
     this.solveAll();
     return true;
   }

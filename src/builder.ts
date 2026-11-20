@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { Geo, MAT_BASE, MAT_DARK, MAT_LIT, type V3 } from './geo';
 import type { Quarter, Vec2 } from './grid';
+import { LAND, type LandPalette, MODE_ISLAND, MODE_MOUNTAIN, SEA_LEVEL } from './modes';
 import { AWNING, COL, FLOWER, SHUTTER, WALL, mix, shade } from './palette';
 import { hash01, hash32 } from './rng';
 import {
@@ -38,6 +39,7 @@ import {
   W_SQUARE,
   ZONE_OLIVE,
   ZONE_PLAZA,
+  ZONE_ROAD,
   ZONE_ROCKY,
   ZONE_WATER,
   ZONE_WOODS,
@@ -728,6 +730,12 @@ const isWaterCol = (town: Town, u: number): boolean => {
   const g = town.groundTop(u);
   return g >= 0 && town.kindAt(u, g) === ZONE_WATER && !town.has(u, g + 1);
 };
+/** Open paved land (a square or street): meets water as a vertical quay instead of a sloping bank. */
+const isPavedCol = (town: Town, u: number): boolean => {
+  const g = town.groundTop(u);
+  const z = g >= 0 ? town.kindAt(u, g) : -1;
+  return (z === ZONE_PLAZA || z === ZONE_ROAD) && !town.has(u, g + 1);
+};
 
 /**
  * Height of the ground at a point shared by the cells of `owners`. Every cell sharing the
@@ -743,6 +751,7 @@ export function pointHeight(town: Town, owners: number[]): number {
   let wMax = -Infinity;
   let wMin = Infinity;
   let landMin = Infinity;
+  let paved = false;
   for (const u of owners) {
     const t = colTop(town, u);
     if (t === null) {
@@ -754,11 +763,16 @@ export function pointHeight(town: Town, owners: number[]): number {
     if (isWaterCol(town, u)) {
       wMax = Math.max(wMax, t);
       wMin = Math.min(wMin, t);
-    } else landMin = Math.min(landMin, t);
+    } else {
+      landMin = Math.min(landMin, t);
+      if (isPavedCol(town, u)) paved = true;
+    }
   }
   if (!n) return 0;
+  // Water at the very edge of an island runs flush to the edge (and spills over as a waterfall).
+  if (wMax > -Infinity && !allGrounded && wMin === wMax && landMin >= wMax - 1e-6) return wMax - WATER_LEVEL;
   if (wMax > -Infinity) {
-    if (allGrounded && wMin === wMax && landMin >= wMax - 1e-6) return wMax - WATER_DIP;
+    if (allGrounded && wMin === wMax && landMin >= wMax - 1e-6) return paved ? wMax - WATER_LEVEL + 0.005 : wMax - WATER_DIP;
     return wMax;
   }
   return sum / n;
@@ -796,14 +810,19 @@ function surfY(Q: Quarter, h: number[], x: number, z: number): number {
   return tri(Q.P0, Q.P1, Q.P2, h[0], h[1], h[2]) ?? tri(Q.P0, Q.P2, Q.P3, h[0], h[2], h[3]) ?? (h[0] + h[1] + h[2] + h[3]) / 4;
 }
 
-const WOODS_FLOOR = new THREE.Color('#7fb862');
-const SAND = new THREE.Color('#d6c79c');
 const REED = new THREE.Color('#a2b45a');
 const MUSHROOM = new THREE.Color('#e0503f');
 const ROCK_GREY = new THREE.Color('#b9b4ad');
-const OLIVE_FLOOR = new THREE.Color('#bfc277');
-const ROCKY_FLOOR = new THREE.Color('#cfbd8f');
-const GROUT = new THREE.Color('#fbfaf6');
+const OLEANDER = [new THREE.Color('#f07aa8'), new THREE.Color('#fbf2f4'), new THREE.Color('#d9435f')];
+const BROOM = new THREE.Color('#f2c53d');
+const FIR = new THREE.Color('#2e5e44');
+const CHESTNUT = [new THREE.Color('#4f8a3a'), new THREE.Color('#5d9440'), new THREE.Color('#467c35')];
+const UMBRELLA_PINE = new THREE.Color('#5d8a4a');
+const ALPINE = [new THREE.Color('#9b7fd1'), new THREE.Color('#f5d547'), new THREE.Color('#ffffff'), new THREE.Color('#e86f8f')];
+const FOAM = new THREE.Color('#eef8fb');
+const QUAY_EDGE = { island: new THREE.Color('#f4f1ea'), other: new THREE.Color('#bdb3a3') };
+const CAT = [new THREE.Color('#e39a4b'), new THREE.Color('#8a8580'), new THREE.Color('#f2efe8'), new THREE.Color('#3b3836')];
+const HULL = [new THREE.Color('#2f6db5'), new THREE.Color('#c0392b'), new THREE.Color('#2e8b57'), new THREE.Color('#e3a33b')];
 const PLANE_BARK = new THREE.Color('#9c917c');
 const PLANE_LEAF = new THREE.Color('#5f9b45');
 const CHAIR_BLUE = new THREE.Color('#3f74b8');
@@ -842,6 +861,8 @@ function buildGround(town: Town, v: number, k: number, cell: Voxel, g: Geo) {
   if (isTop) {
     const covered = town.has(v, k + 1);
     const zone = cell.kind;
+    const mode = town.mode;
+    const pal = LAND[mode] ?? LAND[0];
     const water = isWaterCol(town, v);
     const y = k * H;
     const h0 = water ? y - WATER_DIP : y;
@@ -859,20 +880,31 @@ function buildGround(town: Town, v: number, k: number, cell: Voxel, g: Geo) {
       qs.forEach((Q, i) => {
         const h = heights[i];
         let col: THREE.Color;
-        if (water) col = SAND;
-        else if (zone === ZONE_PLAZA) col = shade(COL.plaza, (hash32(seed, i) & 1 ? 0.97 : 1.03) + 0.02 * hash01(seed, i, 7));
-        else if (zone === ZONE_WOODS) col = shade(WOODS_FLOOR, 0.95 + 0.08 * hash01(seed, i, 1));
-        else if (zone === ZONE_OLIVE) col = shade(OLIVE_FLOOR, 0.95 + 0.08 * hash01(seed, i, 1));
-        else if (zone === ZONE_ROCKY) col = shade(ROCKY_FLOOR, 0.92 + 0.12 * hash01(seed, i, 1));
-        else col = shade(COL.grass, 0.95 + 0.1 * hash01(seed, i, 1));
+        if (water) col = pal.bed;
+        else if (zone === ZONE_PLAZA) col = shade(pal.plaza, (hash32(seed, i) & 1 ? 0.97 : 1.03) + 0.02 * hash01(seed, i, 7));
+        else if (zone === ZONE_ROAD) col = shade(pal.road, 0.97 + 0.05 * hash01(seed, i, 7));
+        else if (zone === ZONE_WOODS) col = shade(pal.woods, 0.95 + 0.08 * hash01(seed, i, 1));
+        else if (zone === ZONE_OLIVE) col = shade(pal.olive, 0.95 + 0.08 * hash01(seed, i, 1));
+        else if (zone === ZONE_ROCKY) col = shade(pal.rocky, 0.92 + 0.12 * hash01(seed, i, 1));
+        else col = shade(pal.meadow, 0.95 + 0.1 * hash01(seed, i, 1));
         g.tri(corner(Q.P0, h[0]), corner(Q.P1, h[1]), corner(Q.P2, h[2]), col);
         g.tri(corner(Q.P0, h[0]), corner(Q.P2, h[2]), corner(Q.P3, h[3]), col);
       });
     }
 
     // Cliffs where the land ends.
-    const lip = covered ? COL.grassDark : zone === ZONE_PLAZA ? shade(COL.plaza, 0.85) : zone === ZONE_ROCKY ? shade(ROCKY_FLOOR, 0.8) : zone === ZONE_OLIVE ? shade(OLIVE_FLOOR, 0.78) : COL.grassDark;
-    const rockLow = shade(COL.rock, 0.88);
+    const lip = covered
+      ? pal.lip
+      : zone === ZONE_PLAZA
+        ? shade(pal.plaza, 0.85)
+        : zone === ZONE_ROAD
+          ? shade(pal.road, 0.85)
+          : zone === ZONE_ROCKY
+            ? shade(pal.rocky, 0.8)
+            : zone === ZONE_OLIVE
+              ? shade(pal.olive, 0.78)
+              : pal.lip;
+    const rockLow = shade(pal.rock, 0.88);
     qs.forEach((Q, i) => {
       const h = heights[i];
       const edges: [Vec2, Vec2, number, number, number][] = [
@@ -882,8 +914,46 @@ function buildGround(town: Town, v: number, k: number, cell: Voxel, g: Geo) {
       for (const [A, B, ha, hb, n] of edges) {
         if (town.groundTop(n) >= 0) continue;
         g.act = n + 1;
+        if (mode === MODE_ISLAND) {
+          // Islands in the sea: a short cliff into the water and a line of surf.
+          const base = SEA_LEVEL - 0.25;
+          if (!water) {
+            g.quad([A.x, ha, A.z], [B.x, hb, B.z], [B.x, hb - 0.06, B.z], [A.x, ha - 0.06, A.z], lip);
+            g.quad([A.x, ha - 0.06, A.z], [B.x, hb - 0.06, B.z], [B.x, base, B.z], [A.x, base, A.z], pal.rock, pal.rock, rockLow, rockLow);
+          }
+          const out = (P: Vec2, d: number) => {
+            const dx = P.x - P0.x;
+            const dz = P.z - P0.z;
+            const l = Math.hypot(dx, dz) || 1;
+            return { x: P.x + (dx / l) * d, z: P.z + (dz / l) * d };
+          };
+          if (!water) {
+            const A2 = out(A, 0.09 + 0.05 * hash01(seed, i, 92));
+            const B2 = out(B, 0.09 + 0.05 * hash01(seed, i, 93));
+            g.act = ACT_NONE;
+            g.quad([A.x, SEA_LEVEL + 0.004, A.z], [B.x, SEA_LEVEL + 0.004, B.z], [B2.x, SEA_LEVEL + 0.002, B2.z], [A2.x, SEA_LEVEL + 0.002, A2.z], FOAM);
+            g.act = n + 1;
+          }
+          continue;
+        }
+        if (water && !covered) {
+          // A little waterfall pouring off the edge of the floating island.
+          const out = (P: Vec2, d: number) => {
+            const dx = P.x - P0.x;
+            const dz = P.z - P0.z;
+            const l = Math.hypot(dx, dz) || 1;
+            return { x: P.x + (dx / l) * d, z: P.z + (dz / l) * d };
+          };
+          const A2 = out(A, 0.06);
+          const B2 = out(B, 0.06);
+          const foam = mix(pal.water, COL.trim, 0.65);
+          g.quad([A.x, ha, A.z], [B.x, hb, B.z], [B2.x, hb - 0.12, B2.z], [A2.x, ha - 0.12, A2.z], pal.water);
+          g.quad([A2.x, ha - 0.12, A2.z], [B2.x, hb - 0.12, B2.z], [B2.x, -D - 0.5, B2.z], [A2.x, -D - 0.5, A2.z], pal.water, pal.water, foam, foam);
+          g.quad([A.x, ha - 0.02, A.z], [B.x, hb - 0.02, B.z], [B.x, -D, B.z], [A.x, -D, A.z], pal.rock, pal.rock, rockLow, rockLow);
+          continue;
+        }
         g.quad([A.x, ha, A.z], [B.x, hb, B.z], [B.x, hb - 0.06, B.z], [A.x, ha - 0.06, A.z], lip);
-        g.quad([A.x, ha - 0.06, A.z], [B.x, hb - 0.06, B.z], [B.x, -D, B.z], [A.x, -D, A.z], COL.rock, COL.rock, rockLow, rockLow);
+        g.quad([A.x, ha - 0.06, A.z], [B.x, hb - 0.06, B.z], [B.x, -D, B.z], [A.x, -D, A.z], pal.rock, pal.rock, rockLow, rockLow);
       }
     });
 
@@ -896,47 +966,86 @@ function buildGround(town: Town, v: number, k: number, cell: Voxel, g: Geo) {
         qs.forEach((Q, i) => {
           const h = heights[i];
           const ext = (P: Vec2, hp: number, f: number): V3 => (hp < wy - 0.01 ? [P0.x + (P.x - P0.x) * f, wy, P0.z + (P.z - P0.z) * f] : [P.x, wy, P.z]);
-          g.poly([[P0.x, wy, P0.z], ext(Q.P1, h[1], 1.6), ext(Q.P2, h[2], 1.35), ext(Q.P3, h[3], 1.6)], COL.water);
+          g.poly([[P0.x, wy, P0.z], ext(Q.P1, h[1], 1.6), ext(Q.P2, h[2], 1.35), ext(Q.P3, h[3], 1.6)], pal.water);
         });
       }
-      if (zone === ZONE_PLAZA) {
-        // Whitewashed joints between the paving stones, as in Cycladic lanes.
+      if (zone === ZONE_PLAZA || zone === ZONE_ROAD) {
+        const strip = (A: Vec2, B: Vec2, ha: number, hb: number, col: THREE.Color, w = 0.012, lift = 0.006) => {
+          const dx = B.x - A.x;
+          const dz = B.z - A.z;
+          const l = Math.hypot(dx, dz) || 1;
+          const nx = (-dz / l) * w;
+          const nz = (dx / l) * w;
+          g.quad([A.x + nx, ha + lift, A.z + nz], [B.x + nx, hb + lift, B.z + nz], [B.x - nx, hb + lift, B.z - nz], [A.x - nx, ha + lift, A.z - nz], col);
+        };
+        // Joints between the paving stones: whitewashed on the islands, dark on mountain cobbles.
         qs.forEach((Q, i) => {
           const h = heights[i];
-          const line = (A: Vec2, B: Vec2, ha: number, hb: number) => {
-            const dx = B.x - A.x;
-            const dz = B.z - A.z;
-            const l = Math.hypot(dx, dz) || 1;
-            const nx = (-dz / l) * 0.012;
-            const nz = (dx / l) * 0.012;
-            g.quad([A.x + nx, ha + 0.006, A.z + nz], [B.x + nx, hb + 0.006, B.z + nz], [B.x - nx, hb + 0.006, B.z - nz], [A.x - nx, ha + 0.006, A.z - nz], GROUT);
-          };
-          line(Q.P1, Q.P2, h[1], h[2]);
-          line(Q.P2, Q.P3, h[2], h[3]);
+          strip(Q.P1, Q.P2, h[1], h[2], pal.joint);
+          strip(Q.P2, Q.P3, h[2], h[3], pal.joint);
         });
+        // Streets get a curb where they meet open land, so they read as lanes and paths.
+        const streetLike = (n: number) => {
+          const z = town.groundTop(n) === k ? town.kindAt(n, k) : -1;
+          return z === ZONE_ROAD || z === ZONE_PLAZA || z === ZONE_WATER || town.isBuilding(n, k + 1);
+        };
+        qs.forEach((Q, i) => {
+          const h = heights[i];
+          const edges: [Vec2, Vec2, number, number, number][] = [
+            [Q.P1, Q.P2, h[1], h[2], Q.n1],
+            [Q.P2, Q.P3, h[2], h[3], Q.n3],
+          ];
+          for (const [A, B, ha, hb, n] of edges) {
+            if (isWaterCol(town, n) && town.groundTop(n) === k) {
+              // Harbour quay: a stone edge with a bollard.
+              const qc = mode === MODE_ISLAND ? QUAY_EDGE.island : QUAY_EDGE.other;
+              strip(A, B, ha, hb, qc, 0.035, 0.03);
+              const mx = (A.x + B.x) / 2 + (P0.x - (A.x + B.x) / 2) * 0.12;
+              const mz = (A.z + B.z) / 2 + (P0.z - (A.z + B.z) / 2) * 0.12;
+              if (hash01(seed, i, 91) < 0.5) g.cylinder(mx, mz, (ha + hb) / 2, (ha + hb) / 2 + 0.08, 0.028, 6, COL.iron, 0.022);
+              continue;
+            }
+            if (zone !== ZONE_ROAD || streetLike(n) || town.groundTop(n) < 0) continue;
+            const inset = (P: Vec2, hp: number, f: number): [Vec2, number] => [{ x: P.x + (P0.x - P.x) * f, z: P.z + (P0.z - P.z) * f }, hp + (h[0] - hp) * f];
+            const [A2, ha2] = inset(A, ha, 0.18);
+            const [B2, hb2] = inset(B, hb, 0.18);
+            g.quad([A.x, ha + 0.01, A.z], [B.x, hb + 0.01, B.z], [B2.x, hb2 + 0.01, B2.z], [A2.x, ha2 + 0.01, A2.z], pal.meadow);
+            strip(A2, B2, ha2, hb2, pal.roadEdge, 0.022, 0.02);
+          }
+        });
+        if (zone === ZONE_ROAD && mode === MODE_MOUNTAIN) {
+          // Cobbles of the kalderimi.
+          for (let j = 0; j < 10; j++) {
+            const p = randomPoint(qs, seed, 200 + j, 0.05, 0.85);
+            const [cx, cyy, cz] = at(p);
+            g.blob(cx, cyy + 0.004, cz, 0.06, shade(pal.road, 0.86 + 0.22 * hash01(seed, j, 93)), 0.12);
+          }
+        }
       }
-      decorate(g, cell.tile, qs, seed, at, P0, water ? wy : y);
+      decorate(g, cell.tile, qs, seed, at, P0, water ? wy : y, mode, pal);
     }
   }
 
   // Rocky underside: a jagged cone per column; neighbours together form a floating boulder.
-  if (k === 0) {
+  // (Island mode has a real sea, so there is nothing to see underneath.)
+  if (k === 0 && town.mode !== MODE_ISLAND) {
     g.act = ACT_NONE;
     const nb = grid.edgeNbrs[v].filter((n) => town.groundTop(n) >= 0).length;
     const depth = D + 0.45 + 0.22 * nb + 0.12 * Math.max(0, town.groundTop(v)) + 0.35 * hash01(seed, 2);
     const apex: V3 = [P0.x + (hash01(seed, 3) - 0.5) * 0.25, -depth, P0.z + (hash01(seed, 4) - 0.5) * 0.25];
-    const rockLow = shade(COL.rock, 0.88);
+    const pal = LAND[town.mode] ?? LAND[0];
+    const rockLow = shade(pal.rock, 0.88);
     for (const Q of qs) {
-      g.tri(apex, [Q.P1.x, -D, Q.P1.z], [Q.P2.x, -D, Q.P2.z], COL.rockDark, rockLow, rockLow);
-      g.tri(apex, [Q.P2.x, -D, Q.P2.z], [Q.P3.x, -D, Q.P3.z], COL.rockDark, rockLow, rockLow);
+      g.tri(apex, [Q.P1.x, -D, Q.P1.z], [Q.P2.x, -D, Q.P2.z], pal.rockDark, rockLow, rockLow);
+      g.tri(apex, [Q.P2.x, -D, Q.P2.z], [Q.P3.x, -D, Q.P3.z], pal.rockDark, rockLow, rockLow);
     }
   }
 }
 
 /** Props for each land tile. `at` places a point on the ground surface. */
-function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt, lift?: number) => V3, P0: Vec2, cy: number) {
+function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt, lift?: number) => V3, P0: Vec2, cy: number, mode: number, pal: LandPalette) {
   const rp = (j: number, lo?: number, hi?: number) => randomPoint(qs, seed, j, lo, hi);
-  const tuft = (j: number, col = COL.grassDark) => {
+  const tuft = (j: number, col = pal.tuft) => {
     const [x, y, z] = at(rp(j));
     g.cylinder(x, z, y, y + 0.09, 0.035, 4, col, 0, false);
   };
@@ -947,22 +1056,48 @@ function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt,
       for (let j = 0; j < 4; j++) tuft(j);
       break;
     case T.flowers:
-      for (let j = 0; j < 9; j++) {
-        const [x, y, z] = at(rp(j), 0.035);
-        g.blob(x, y, z, 0.036, FLOWER[hash32(seed, j, 9) % FLOWER.length]);
+      if (mode === MODE_ISLAND) {
+        // Summer flowers: oleander shrubs in pink, white and red, with yellow broom.
+        for (let j = 0; j < 2; j++) {
+          const [x, y, z] = at(rp(j, 0.2, 0.7));
+          g.blob(x, y + 0.14, z, 0.15, COL.leaf[1], 0.9);
+          const oc = OLEANDER[hash32(seed, j, 94) % OLEANDER.length];
+          for (let f = 0; f < 6; f++) {
+            const a = (f / 6) * Math.PI * 2 + j;
+            g.blob(x + Math.cos(a) * 0.11, y + 0.18 + (f % 2) * 0.07, z + Math.sin(a) * 0.11, 0.04, oc);
+          }
+        }
+        for (let j = 2; j < 5; j++) {
+          const [x, y, z] = at(rp(j));
+          g.blob(x, y + 0.05, z, 0.06, BROOM, 0.8);
+        }
+      } else {
+        const cols = mode === MODE_MOUNTAIN ? ALPINE : FLOWER;
+        for (let j = 0; j < 9; j++) {
+          const [x, y, z] = at(rp(j), 0.035);
+          g.blob(x, y, z, 0.036, cols[hash32(seed, j, 9) % cols.length]);
+        }
       }
       for (let j = 9; j < 12; j++) tuft(j);
       break;
     case T.tree: {
       const [x, y, z] = at(centre);
-      if (hash01(seed, 50) < 0.4) pine(g, x, y, z, 1);
+      if (mode === MODE_ISLAND) olive(g, x, y, z, 1.15, seed);
+      else if (mode === MODE_MOUNTAIN) chestnut(g, x, y, z, 1.1, seed);
+      else if (hash01(seed, 50) < 0.4) pine(g, x, y, z, 1);
       else oak(g, x, y, z, 1, seed);
       break;
     }
     case T.bush:
       for (let j = 0; j < 3; j++) {
         const [x, y, z] = at(rp(j));
-        g.blob(x, y + 0.06, z, 0.11 + 0.05 * hash01(seed, j, 4), COL.leaf[hash32(seed, j) % 3], 0.75);
+        if (mode === MODE_ISLAND) {
+          // Phrygana: low grey-green cushions of thyme and sage.
+          g.blob(x, y + 0.04, z, 0.09 + 0.04 * hash01(seed, j, 4), shade(SCRUB, 0.95 + 0.1 * hash01(seed, j, 5)), 0.6);
+          g.blob(x, y + 0.09, z, 0.02, THYME_FLOWER);
+        } else if (mode === MODE_MOUNTAIN) {
+          g.cylinder(x, z, y, y + 0.28, 0.08, 6, FIR, 0, false);
+        } else g.blob(x, y + 0.06, z, 0.11 + 0.05 * hash01(seed, j, 4), COL.leaf[hash32(seed, j) % 3], 0.75);
       }
       tuft(5);
       break;
@@ -983,6 +1118,15 @@ function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt,
         const [x, y, z] = at(rp(j, 0.1, 0.8));
         const s = 0.75 + 0.45 * hash01(seed, j, 71);
         const isPine = tile === T.pines || (tile === T.grove && j % 2 === 0);
+        if (mode === MODE_MOUNTAIN) {
+          if (isPine) fir(g, x, y, z, s * 1.1);
+          else chestnut(g, x, y, z, s * 0.85, seed + j);
+          continue;
+        }
+        if (mode === MODE_ISLAND && isPine) {
+          umbrellaPine(g, x, y, z, s);
+          continue;
+        }
         if (isPine) pine(g, x, y, z, s);
         else oak(g, x, y, z, s * 0.85, seed + j);
       }
@@ -1213,7 +1357,93 @@ function decorate(g: Geo, tile: number, qs: Quarter[], seed: number, at: (p: Pt,
       tuft(7, SCRUB);
       tuft(8, SCRUB);
       break;
+    // Harbour: a caique (wooden fishing boat) moored by the quay.
+    case T.caique:
+      caique(g, P0.x, cy, P0.z, hash01(seed, 95) * Math.PI, HULL[hash32(seed, 96) % HULL.length]);
+      break;
+    // Streets.
+    case T.lane_pots:
+      for (let j = 0; j < 3; j++) {
+        const [x, y, z] = at(rp(j, 0.6, 0.9));
+        const big = j === 0 && mode === MODE_ISLAND;
+        g.cylinder(x, z, y, y + (big ? 0.12 : 0.07), big ? 0.045 : 0.03, 7, TERRACOTTA, big ? 0.06 : 0.04);
+        g.blob(x, y + (big ? 0.19 : 0.11), z, big ? 0.07 : 0.045, j === 1 ? COL.leaf[2] : mode === MODE_ISLAND ? OLEANDER[2] : FLOWER[4]);
+      }
+      break;
+    case T.lane_lamp: {
+      const [x, y, z] = at(rp(0, 0.65, 0.85));
+      g.cylinder(x, z, y, y + 0.48, 0.016, 5, COL.iron);
+      g.box(x, z, 0.035, 0.035, y + 0.48, y + 0.54, COL.iron);
+      g.mat = MAT_LIT;
+      g.blob(x, y + 0.51, z, 0.03, LAMP);
+      g.mat = MAT_BASE;
+      break;
+    }
+    case T.lane_cat: {
+      const [x, y, z] = at(rp(0, 0.3, 0.7));
+      cat(g, x, y, z, hash01(seed, 97) * Math.PI * 2, CAT[hash32(seed, 98) % CAT.length]);
+      break;
+    }
   }
+}
+
+function fir(g: Geo, x: number, y: number, z: number, s: number) {
+  g.cylinder(x, z, y, y + 0.14 * s, 0.035 * s, 5, COL.trunk);
+  for (let i = 0; i < 4; i++) {
+    const yy = y + (0.1 + i * 0.17) * s;
+    g.cylinder(x, z, yy, yy + 0.3 * s, (0.2 - i * 0.04) * s, 7, shade(FIR, 0.95 + 0.04 * i), 0, false);
+  }
+}
+
+function chestnut(g: Geo, x: number, y: number, z: number, s: number, seed: number) {
+  g.cylinder(x, z, y, y + 0.26 * s, 0.06 * s, 6, COL.trunk, 0.045 * s);
+  const lc = CHESTNUT[hash32(seed, 52) % 3];
+  g.blob(x, y + 0.45 * s, z, 0.3 * s, lc, 0.8);
+  g.blob(x + 0.16 * s, y + 0.52 * s, z + 0.05 * s, 0.2 * s, shade(lc, 1.07), 0.85);
+  g.blob(x - 0.14 * s, y + 0.5 * s, z - 0.08 * s, 0.2 * s, shade(lc, 0.93), 0.85);
+}
+
+function umbrellaPine(g: Geo, x: number, y: number, z: number, s: number) {
+  g.cylinder(x, z, y, y + 0.45 * s, 0.035 * s, 5, COL.trunk, 0.025 * s);
+  g.blob(x, y + 0.5 * s, z, 0.28 * s, UMBRELLA_PINE, 0.38);
+  g.blob(x + 0.08 * s, y + 0.55 * s, z - 0.04 * s, 0.18 * s, shade(UMBRELLA_PINE, 1.08), 0.4);
+}
+
+/** Caique: a little wooden fishing boat with a painted hull stripe and a tiny wheelhouse. */
+function caique(g: Geo, cx: number, cy: number, cz: number, a: number, stripe: THREE.Color) {
+  const ca = Math.cos(a);
+  const sa = Math.sin(a);
+  const P = (u: number, w: number, y: number): V3 => [cx + ca * u - sa * w, cy + y, cz + sa * u + ca * w];
+  const top = [P(0.3, 0, 0.08), P(0.12, 0.1, 0.08), P(-0.22, 0.09, 0.08), P(-0.26, 0, 0.08), P(-0.22, -0.09, 0.08), P(0.12, -0.1, 0.08)];
+  const mid = top.map(([x, , z]) => [cx + (x - cx) * 0.95, cy + 0.04, cz + (z - cz) * 0.95] as V3);
+  const bot = top.map(([x, , z]) => [cx + (x - cx) * 0.6, cy - 0.03, cz + (z - cz) * 0.6] as V3);
+  const white = new THREE.Color('#f7f5ef');
+  for (let i = 0; i < top.length; i++) {
+    const j = (i + 1) % top.length;
+    g.quad(mid[i], mid[j], top[j], top[i], white);
+    g.quad(bot[i], bot[j], mid[j], mid[i], stripe);
+  }
+  g.poly(top, COL.wood);
+  const [hx, hy, hz] = P(-0.08, 0, 0.08);
+  g.box(hx, hz, 0.06, 0.05, hy, hy + 0.09, white, stripe);
+  const [mx, my, mz] = P(0.14, 0, 0.08);
+  g.cylinder(mx, mz, my, my + 0.25, 0.008, 4, COL.trunk);
+}
+
+function cat(g: Geo, x: number, y: number, z: number, a: number, col: THREE.Color) {
+  const c = Math.cos(a);
+  const sn = Math.sin(a);
+  const P = (fx: number, fz: number): [number, number] => [x + c * fx - sn * fz, z + sn * fx + c * fz];
+  const [bx, bz] = P(0, 0);
+  g.box(bx, bz, 0.035, 0.035, y + 0.02, y + 0.06, col);
+  const [hx, hz] = P(0.045, 0);
+  g.box(hx, hz, 0.022, 0.022, y + 0.05, y + 0.09, col);
+  for (const side of [-1, 1]) {
+    const [ex, ez] = P(0.045, 0.012 * side);
+    g.cylinder(ex, ez, y + 0.09, y + 0.115, 0.008, 3, col, 0, false);
+  }
+  const [tx, tz] = P(-0.06, 0.02);
+  g.box(tx, tz, 0.008, 0.008, y + 0.04, y + 0.11, col);
 }
 
 function olive(g: Geo, x: number, y: number, z: number, s: number, seed: number) {

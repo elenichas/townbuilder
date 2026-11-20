@@ -57,7 +57,12 @@ The two Greek building styles are drawn from the vernacular architecture of the 
   </tr>
 </table>
 
-Choose a style with the house icons next to the colours (Pastel, Island or Mountain), or use **Surprise me → Greek island village / Greek mountain village**. On Greek buildings, the paint colour goes on the doors, shutters and domes instead of the walls. **Paint** applies both colour and style, so you can convert a building and watch its neighbours adapt.
+Pick a **mode** with the switcher at the top centre: **Pastel town**, **Greek island** or **Greek mountain village**. The mode sets the architecture of new houses, the land types the Land tool offers, the colours of the landscape and the sky. **Surprise me** grows a whole settlement for that mode:
+
+- **Greek island**: the island sits in a real turquoise sea, with low limestone cliffs and a line of surf. A whitewashed **Chora** crowns the hill, threaded with lanes and topped by windmills. A **port** at the shore has a quay, waterfront tavernas and moored caiques, and a whitewashed lane climbs from it to the Chora. Around them: dry summer hillside, phrygana scrub, olive groves, cypresses, oleander and chapels.
+- **Greek mountain village**: floating mountains with fir and chestnut forest and limestone peaks. A stone village sits around a square with a plane tree, joined to outlying hamlets by cobbled **kalderimi** paths, with a river or lake below, stone bridges and tower houses.
+
+On Greek buildings, the paint colour goes on the doors, shutters and domes instead of the walls. **Paint** applies the colour and the current mode's style, so you can convert a building and watch its neighbours adapt.
 
 | Island (Cyclades) | Mountain (Zagori, Pelion, Mani) |
 | --- | --- |
@@ -92,8 +97,8 @@ The built site is fully static, so `dist/` can be hosted anywhere (GitHub Pages,
 | Click the clouds | raise an island |
 | Click land or a roof | build a storey on top |
 | Click a wall | build sideways (overhangs become arches and bridges) |
-| **Land** tool + Meadow / Woods / Square / Water / Olive grove / Rocky hillside | paint the ground; click the same land again to raise a hill |
-| Style icons (Pastel / Island / Mountain) | choose the architecture of new buildings |
+| **Land** tool | paint the ground with the mode's land types (e.g. lanes, kalderimi, squares, olive groves, forest, sea); click the same land again to raise a hill |
+| Mode switcher (top centre) | Pastel town, Greek island or Greek mountain village |
 | **Restyle** tool or <kbd>Alt</kbd>/<kbd>⌥</kbd>-click | get a different version of a piece; its neighbours adapt |
 | **Paint** tool or <kbd>Shift</kbd>-click | apply the selected colour and style to a building |
 | **Erase** tool or right-click | remove a piece |
@@ -161,7 +166,8 @@ src/
   town.ts      town state, editing, contexts, local re-solving, save/load
   builder.ts   procedural geometry: pastel, Cycladic and stone storeys, roofs, arches, terrain and props
   geo.ts       tiny mesh builder (flat-shaded, vertex-coloured, picking actions)
-  generate.ts  "Surprise me" generator: island village, mountain village or pastel town
+  generate.ts  "Surprise me": Chora + port island, mountain village with kalderimi, or pastel town
+  modes.ts     the three modes: land palettes, landscape colours, sky and sea
   scene.ts     renderer, camera, sky, clouds, birds, day/night
   view.ts      voxel meshes, animations, hover ghost, grid lines
   help.ts      the in-game guide: tabs, grid diagrams, interactive WFC demo

@@ -18,33 +18,37 @@
       <p id="hint">Click the clouds to raise an island</p>
     </header>
 
+    <div class="modebar">
+      <div class="modes" role="radiogroup" aria-label="Mode">
+        <button data-mode="0" role="radio" aria-checked="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6M6 10v10h12V10M10 20v-5h4v5" /></svg><span>Pastel town</span>
+        </button>
+        <button data-mode="1" role="radio" aria-checked="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V12h6v8M9 20v-5h7v5M2 20h20M4.5 12a2.5 2.2 0 0 1 4 0M15 10l2-4 2 4M17 6V3" /></svg><span>Greek island</span>
+        </button>
+        <button data-mode="2" role="radio" aria-checked="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20l6-10 3 4 3-5 8 11zM9 20v-4h4v4M8.5 16l2.5-2 2.5 2" /></svg><span>Greek mountain village</span>
+        </button>
+      </div>
+      <p id="modeTagline" class="mode-tagline" aria-live="polite"></p>
+    </div>
+
     <nav class="toolbar" aria-label="Tools">
       <div class="group" role="radiogroup" aria-label="Tool">
         <button data-tool="build" class="tool active" title="Build (1)" aria-pressed="true">
           <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" /></svg><span>Build</span>
         </button>
-        <button data-tool="land" class="tool" title="Land (2): meadow, woods, squares, water. Click again to raise a hill" aria-pressed="false">
+        <button data-tool="land" class="tool" title="Land (2): paint the ground (the choices change with the mode). Click again to raise a hill" aria-pressed="false">
           <svg viewBox="0 0 24 24"><path d="M2 19l6-9 4 5 3-4 7 8zM16 6.5a2 2 0 1 0 0-.01" /></svg><span>Land</span>
         </button>
         <button data-tool="restyle" class="tool" title="Restyle (3) · or Alt/Option-click" aria-pressed="false">
           <svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" /></svg><span>Restyle</span>
         </button>
-        <button data-tool="paint" class="tool" title="Paint (4) · or Shift-click. Applies the selected colour and building style" aria-pressed="false">
+        <button data-tool="paint" class="tool" title="Paint (4) · or Shift-click. Applies the selected colour and the current mode's building style" aria-pressed="false">
           <svg viewBox="0 0 24 24"><path d="M18 3l3 3-9 9-3-3zM9 12l-3 3a3 3 0 0 0-3 3v3h3a3 3 0 0 0 3-3l3-3" /></svg><span>Paint</span>
         </button>
         <button data-tool="erase" class="tool" title="Erase (5) · or right-click" aria-pressed="false">
           <svg viewBox="0 0 24 24"><path d="M20 20H9M3.5 14.5l9-9a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3L13 19H8z" /></svg><span>Erase</span>
-        </button>
-      </div>
-      <div class="group" id="styles" role="radiogroup" aria-label="Building style">
-        <button data-style="0" aria-pressed="true" title="Pastel town: colourful plastered houses with tiled roofs">
-          <svg viewBox="0 0 24 24"><path d="M4 11l8-6 8 6M6 10v10h12V10M10 20v-5h4v5" /></svg>
-        </button>
-        <button data-style="1" aria-pressed="false" title="Greek island (Cycladic): whitewashed cubes, flat roofs and vaults, painted doors, chapels and windmills">
-          <svg viewBox="0 0 24 24"><path d="M4 20V11h7v9M11 20v-6h9v6M2 20h20M6.5 11a4 3.5 0 0 1 2-3.5h0a4 3.5 0 0 1 2 3.5M8.5 7.5V5" /></svg>
-        </button>
-        <button data-style="2" aria-pressed="false" title="Greek mountain (Zagori, Pelion, Mani): stone houses, slate roofs, wooden bays, stone bridges and towers">
-          <svg viewBox="0 0 24 24"><path d="M2 20l6-10 3 4 3-5 8 11zM9 20v-4h4v4M8.5 16l2.5-2 2.5 2" /></svg>
         </button>
       </div>
       <div class="group swatches" id="swatches" aria-label="Colour"></div>
@@ -55,7 +59,7 @@
       </div>
       <div class="group">
         <button id="night" title="Day / night (N)"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg></button>
-        <button id="surprise" title="Surprise me: grow a random village" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M15 4V2M15 10V8M11 6h2M17 6h2M4 20L14 10M18 13l.6 1.4L20 15l-1.4.6L18 17l-.6-1.4L16 15l1.4-.6z" /></svg></button>
+        <button id="surprise" title="Surprise me: grow a whole village in the current mode"><svg viewBox="0 0 24 24"><path d="M15 4V2M15 10V8M11 6h2M17 6h2M4 20L14 10M18 13l.6 1.4L20 15l-1.4.6L18 17l-.6-1.4L16 15l1.4-.6z" /></svg></button>
         <button id="share" title="Copy a link to this town"><svg viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg></button>
         <button id="photo" title="Save a picture"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" /></svg></button>
         <button id="sound" title="Sound on/off"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7" /></svg></button>
@@ -75,7 +79,7 @@
         <div class="tabs" role="tablist" aria-label="Help topics"><button role="tab" id="tab-play" data-tab="play" aria-controls="panel-play" aria-selected="true" tabindex="0">How to play</button><button role="tab" id="tab-grid" data-tab="grid" aria-controls="panel-grid" aria-selected="false" tabindex="-1">The grid</button><button role="tab" id="tab-wfc" data-tab="wfc" aria-controls="panel-wfc" aria-selected="false" tabindex="-1">WFC demo</button><button role="tab" id="tab-rules" data-tab="rules" aria-controls="panel-rules" aria-selected="false" tabindex="-1">Neighbour rules</button><button role="tab" id="tab-game" data-tab="game" aria-controls="panel-game" aria-selected="false" tabindex="-1">In the game</button><button role="tab" id="tab-greek" data-tab="greek" aria-controls="panel-greek" aria-selected="false" tabindex="-1">Greek villages</button><button role="tab" id="tab-terrain" data-tab="terrain" aria-controls="panel-terrain" aria-selected="false" tabindex="-1">Terrain &amp; more</button></div>
 
         <section id="panel-play" role="tabpanel" aria-labelledby="tab-play" class="panel">
-          <div class="tips"><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/></svg><div><h4>Raise an island</h4><p>Click the clouds. Each click adds one cell of land.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><div><h4>Build</h4><p>Click land or a roof to build up, a wall to build sideways. Overhangs become arches and bridges.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 19l6-9 4 5 3-4 7 8zM16 6.5a2 2 0 1 0 0-.01"/></svg><div><h4>Shape the land</h4><p>Pick <b>Meadow</b>, <b>Woods</b>, <b>Square</b> or <b>Water</b> and click land to paint it. Click the same land again to raise a hill.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z"/></svg><div><h4>Restyle</h4><p>Click any piece for a different version. The pieces around it change to match. Shortcut: <kbd>Alt</kbd>/<kbd>⌥</kbd>-click.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 3l3 3-9 9-3-3zM9 12l-3 3a3 3 0 0 0-3 3v3h3a3 3 0 0 0 3-3l3-3"/></svg><div><h4>Paint &amp; erase</h4><p><b>Paint</b> recolours walls (<kbd>Shift</kbd>-click). <b>Erase</b> removes a piece (right-click).</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 12c0-3 4-5 9-5s9 2 9 5-4 5-9 5M8 17l-2 0 1 2"/></svg><div><h4>Look around</h4><p>Drag to orbit, right-drag to pan, scroll or pinch to zoom.</p></div></article></div>
+          <div class="tips"><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/></svg><div><h4>Pick a mode, raise land</h4><p>Choose <b>Pastel town</b>, <b>Greek island</b> or <b>Greek mountain village</b> at the top. Then click the clouds (or the sea) to add land.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><div><h4>Build</h4><p>Click land or a roof to build up, a wall to build sideways. Overhangs become arches and bridges.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 19l6-9 4 5 3-4 7 8zM16 6.5a2 2 0 1 0 0-.01"/></svg><div><h4>Shape the land</h4><p>The <b>Land</b> tool offers the mode’s land: lanes, kalderimi paths, squares, olive groves, forest, sea. Click the same land again to raise a hill.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z"/></svg><div><h4>Restyle</h4><p>Click any piece for a different version. The pieces around it change to match. Shortcut: <kbd>Alt</kbd>/<kbd>⌥</kbd>-click.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 3l3 3-9 9-3-3zM9 12l-3 3a3 3 0 0 0-3 3v3h3a3 3 0 0 0 3-3l3-3"/></svg><div><h4>Paint &amp; erase</h4><p><b>Paint</b> recolours (walls, or doors and shutters on Greek houses) and applies the mode’s style (<kbd>Shift</kbd>-click). <b>Erase</b> removes a piece (right-click).</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 12c0-3 4-5 9-5s9 2 9 5-4 5-9 5M8 17l-2 0 1 2"/></svg><div><h4>Look around</h4><p>Drag to orbit, right-drag to pan, scroll or pinch to zoom.</p></div></article></div>
           <p class="keys"><b>Keys</b> <kbd>1</kbd>–<kbd>5</kbd> tools · <kbd>N</kbd> day/night · <kbd>Ctrl/Cmd</kbd>+<kbd>Z</kbd> undo (add <kbd>Shift</kbd> to redo) · <kbd>?</kbd> this guide</p>
           <p class="more">Curious how it all fits together? The other tabs show the algorithms behind the town.</p>
         </section>
@@ -151,7 +155,7 @@
         </section>
 
         <section id="panel-greek" role="tabpanel" aria-labelledby="tab-greek" class="panel" hidden>
-          <p class="intro">Drawn from real Greek vernacular architecture. Pick a style next to the colours, or try <b>Surprise me</b>.</p>
+          <p class="intro">Pick <b>Greek island</b> or <b>Greek mountain village</b> at the top, then <b>Surprise me</b> grows a whole Chora and port, or a mountain village.</p>
           <div class="greek">
             <article>
               <svg viewBox="0 0 300 150" role="img" aria-label="An island village: a windmill, whitewashed cube houses with blue doors, and a blue-domed chapel with a bell gable">
@@ -187,7 +191,7 @@
                 <li><b>Barrel vaults</b> along rows, as in Santorini’s cave houses</li>
                 <li><b>Chapels</b> from lone houses: painted dome, cross, bell gable</li>
                 <li><b>Windmills</b> on lone towers: wooden cap, canvas sails</li>
-                <li><b>Bougainvillea</b>, painted balconies, whitewashed lanes</li>
+                <li><b>In the sea</b>: Chora on the hill, port and caiques below, lanes between</li>
               </ul>
             </article>
             <article>
@@ -220,7 +224,7 @@
                 <li><b>Grey slate roofs</b>, deep slab eaves, tall chimneys</li>
                 <li><b>Sachnisia</b>: overhanging wooden bays, as in Pelion</li>
                 <li><b>Stone arched bridges</b> wherever a storey spans a gap</li>
-                <li><b>Mani towers</b>: tall lone towers with crenellated tops</li>
+                <li><b>Kalderimi</b> cobbled paths, fir forest, limestone peaks, rivers</li>
               </ul>
             </article>
           </div>
@@ -262,7 +266,6 @@
       </div>
     </div>
 
-    <div id="surpriseMenu" class="menu" role="menu" aria-label="Village type" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

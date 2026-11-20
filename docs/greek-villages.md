@@ -39,6 +39,17 @@ The in-game guide (**? → Greek villages**) summarises all of this with illustr
 
 ![The Greek villages tab of the in-game guide](guide-greek.jpg)
 
+## Landscape and settlement layout
+
+| What the references describe | In Cloudhaven |
+| --- | --- |
+| Cycladic capitals follow a common pattern: a **Chora** (old town) high on a hill, sometimes with a Venetian kastro or a ridge of windmills, and a **port** at sea level below, joined by stepped, whitewashed pedestrian lanes (Ios, Serifos, Folegandros, Mykonos, Naxos). | In **Greek island** mode the island sits in a real sea. *Surprise me* raises the main hill and packs a Chora on it, laid out along lanes first, with windmills on its outer ridge. A harbour basin goes on the shore farthest from the Chora, ringed by a quay with bollards, waterfront tavernas and moored **caiques**. A whitewashed lane is routed up the gentlest slopes from the port to the Chora. |
+| Dry summer hills covered in **phrygana** scrub; oleander and bougainvillea in flower. | Island land is golden and sun-bleached. Phrygana scrub, olive groves and **oleander** in pink, white and red, with yellow broom. Cliffs are pale limestone with a line of surf. |
+| Mountain villages were linked by **kalderimia**, flat-stone mule paths that joined nearly every village, chapel and sheepfold. | **Kalderimi** land: cobbled grey paths with stone curbs. *Surprise me* routes them from the village square to outlying hamlets and lays lanes through the village before the houses. |
+| The Pindus range: **fir** and beech forests over limestone, rivers and stone bridges. | Mountain forests are firs and chestnuts, peaks turn to grey limestone, a river or lake fills the lowest ground, and the village keeps gardens between its stone houses. |
+
+Additional sources: [Spectacular Greek Choras (Greek Reporter)](https://greekreporter.com/2026/06/04/spectacular-greek-choras-need-see/), [Chora of Ios (Wikipedia)](https://en.wikipedia.org/wiki/Ios_(city)), [Naxos Town](https://paliparan.com/2020/12/29/naxos-town/), [Serifos (travel.gr)](https://travel.gr/en/experiences-ee/travel-en/things-to-do-on-the-traditional-cycladic-island-of-serifos), [Kalderimi (Wikipedia)](https://en.wikipedia.org/wiki/Kalderimi), [Friends of the Kalderimi, South Pelion](https://www.friendsofthekalderimi.org), [Walking the ancient paths of Zagorochoria (Greek City Times)](https://greekcitytimes.com/2025/08/29/walking-the-ancient-paths-of-zagorochoria), [Wildflowers on summer hikes in Greece (Trekking.gr)](https://trekking.gr/en/blog/articles/wildflowers-youll-encounter-on-your-summer-hikes-in-greece-pen_spark), [Wildflowers on Kythnos: phrygana](https://sites.google.com/site/wildflowersonkythnos/introduction), [Pindus Mountains mixed forests (WWF)](https://ecoregions.worldwildlife.org/ecoregions/pa1217).
+
 ## How styles interact in the solver
 
 - Each storey stores its style. Storeys of the **same style** on the same floor use the normal neighbour rules: shared window style and matching roof types.

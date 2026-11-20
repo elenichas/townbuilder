@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Grid } from './grid';
+import { SEA_LEVEL } from './modes';
 
 interface Look {
   top: THREE.Color;
@@ -53,6 +54,10 @@ export interface SceneCtx {
   /** 0 = day, 1 = night (animated). */
   nightness(): number;
   tick(dt: number, t: number): void;
+  /** Islands in a real sea (Greek island mode) instead of floating above the clouds. */
+  setSea(on: boolean): void;
+  /** Set the daytime sky colours (top, horizon, below horizon). */
+  setSky(top: string, mid: string, bottom: string): void;
   /** Glide the camera back to the starting view. */
   resetView(): void;
 }
@@ -142,7 +147,7 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
 
   // Cloud sea + distant clouds (instanced low-poly puffs).
   const cloudMat = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 1, emissive: '#ffffff', emissiveIntensity: 0.45 });
-  const puffs: THREE.Matrix4[] = [];
+  let puffs: THREE.Matrix4[] = [];
   const m = new THREE.Matrix4();
   const addCloud = (x: number, y: number, z: number, scale: number) => {
     const n = 4 + Math.floor(Math.random() * 4);
@@ -161,17 +166,35 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
     const r = 6 + Math.random() * 55;
     addCloud(Math.cos(a) * r, -6.5 - Math.random() * 4, Math.sin(a) * r, 1.6 + Math.random() * 1.6);
   }
+  const puffGeo = new THREE.IcosahedronGeometry(1, 1);
+  const instanced = (mats: THREE.Matrix4[]) => {
+    const mesh = new THREE.InstancedMesh(puffGeo, cloudMat, mats.length);
+    mats.forEach((p, i) => mesh.setMatrixAt(i, p));
+    mesh.receiveShadow = true;
+    return mesh;
+  };
+  // The sea of clouds below the floating islands, kept separate so it can make way for a real sea.
+  const lowClouds = instanced(puffs);
+  puffs = [];
   for (let i = 0; i < 22; i++) {
     const a = Math.random() * Math.PI * 2;
     const r = 60 + Math.random() * 50;
     addCloud(Math.cos(a) * r, 4 + Math.random() * 14, Math.sin(a) * r, 2.5 + Math.random() * 2.5);
   }
-  const cloudMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), cloudMat, puffs.length);
-  puffs.forEach((p, i) => cloudMesh.setMatrixAt(i, p));
-  cloudMesh.receiveShadow = true;
   const clouds = new THREE.Group();
-  clouds.add(cloudMesh);
+  clouds.add(lowClouds, instanced(puffs));
   scene.add(clouds);
+
+  // The Aegean: in Greek island mode the islands sit in a real sea instead of floating.
+  const SEA_DAY = new THREE.Color('#36a3c4');
+  const SEA_NIGHT = new THREE.Color('#1a2a52');
+  const seaMat = new THREE.MeshStandardMaterial({ color: SEA_DAY.clone(), roughness: 0.32, metalness: 0.05 });
+  const sea = new THREE.Mesh(new THREE.CircleGeometry(700, 96), seaMat);
+  sea.rotation.x = -Math.PI / 2;
+  sea.position.y = SEA_LEVEL - 0.004;
+  sea.receiveShadow = true;
+  sea.visible = false;
+  scene.add(sea);
 
   // Birds.
   const birdMat = new THREE.MeshStandardMaterial({ color: '#f4f1ea', flatShading: true, side: THREE.DoubleSide });
@@ -217,6 +240,7 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
     sun.intensity = DAY.sunI + (NIGHT.sunI - DAY.sunI) * n;
     lerp(DAY.cloud, NIGHT.cloud, cloudMat.color);
     cloudMat.emissiveIntensity = 0.45 * (1 - n);
+    seaMat.color.copy(SEA_DAY).lerp(SEA_NIGHT, n);
     litGlass.emissiveIntensity = NIGHT.glow * n;
     starMat.opacity = n;
   };
@@ -241,6 +265,16 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
       }
     },
     isNight: () => target === 1,
+    setSea(on: boolean) {
+      sea.visible = on;
+      lowClouds.visible = !on;
+    },
+    setSky(top: string, mid: string, bottom: string) {
+      DAY.top.set(top);
+      DAY.mid.set(mid);
+      DAY.bottom.set(bottom);
+      applyLook(night);
+    },
     resetView() {
       flyFrom = { pos: camera.position.clone(), target: controls.target.clone(), t0: performance.now() };
     },

@@ -19,15 +19,17 @@ import {
   ZONE_MEADOW,
   ZONE_OLIVE,
   ZONE_PLAZA,
+  ZONE_ROAD,
   ZONE_ROCKY,
   ZONE_WATER,
   ZONE_WOODS,
+  T,
   compat,
   decodeStorey,
   isGroundTile,
   isStorey,
 } from '../src/tiles';
-import { Town, key, keyK, keyV } from '../src/town';
+import { MODE_ISLAND, MODE_MOUNTAIN, MODE_PASTEL, Town, key, keyK, keyV } from '../src/town';
 
 const grid = generateGrid(9, 7);
 
@@ -144,7 +146,7 @@ describe('wfc town', () => {
     for (const [k, c] of town.cells) expect(copy.cells.get(k)!.tile).toBe(c.tile);
 
     const snap = town.snapshot();
-    const any = [...town.cells.keys()][0];
+    const any = [...town.cells.keys()].find((k) => town.isBuilding(keyV(k), keyK(k)))!;
     town.remove(keyV(any), keyK(any));
     const ch = town.restore(snap);
     expect(ch.fill.has(any)).toBe(true);
@@ -161,9 +163,13 @@ describe('wfc town', () => {
 });
 
 describe('builder', () => {
-  it.each(['pastel', 'island', 'mountain'] as const)('produces finite geometry for every voxel of a %s village', (theme) => {
+  it.each([
+    ['pastel', MODE_PASTEL],
+    ['island', MODE_ISLAND],
+    ['mountain', MODE_MOUNTAIN],
+  ] as const)('produces finite geometry for every voxel of a %s village', (_name, mode) => {
     const town = new Town(grid);
-    generateTown(town, mulberry32(5), theme);
+    generateTown(town, mulberry32(5), mode);
     let tris = 0;
     for (const k of town.cells.keys()) {
       const res = buildVoxel(town, k);
@@ -246,7 +252,7 @@ describe('greek villages', () => {
   for (const theme of ['island', 'mountain'] as const) {
     it(`generates a consistent ${theme} village with only that style's roofs`, () => {
       const town = new Town(grid);
-      generateTown(town, mulberry32(theme === 'island' ? 5 : 6), theme);
+      generateTown(town, mulberry32(theme === 'island' ? 5 : 6), theme === 'island' ? MODE_ISLAND : MODE_MOUNTAIN);
       assertConsistent(town);
       const style = theme === 'island' ? STYLE_ISLAND : STYLE_MOUNTAIN;
       let storeys = 0;
@@ -299,5 +305,50 @@ describe('greek villages', () => {
     const copy = new Town(grid);
     copy.load(town.serialize());
     expect(copy.styleAt(centre[1], 1)).toBe(town.styleAt(centre[1], 1));
+  });
+});
+
+describe('modes', () => {
+  it('island mode grows a Chora with lanes, a port with a quay, and keeps every rule', () => {
+    const town = new Town(grid);
+    generateTown(town, mulberry32(12), MODE_ISLAND);
+    assertConsistent(town);
+    expect(town.mode).toBe(MODE_ISLAND);
+    const kinds = [...town.cells.values()].map((c) => c.kind);
+    expect(kinds).toContain(ZONE_ROAD);
+    expect(kinds).toContain(ZONE_WATER);
+    expect(kinds).toContain(ZONE_PLAZA);
+    // The Chora sits on the high ground: island houses above level 2.
+    expect([...town.cells.entries()].some(([k, c]) => c.kind === KIND_BUILDING && keyK(k) >= 3)).toBe(true);
+  });
+
+  it('mountain mode lays kalderimi paths and forests', () => {
+    const town = new Town(grid);
+    generateTown(town, mulberry32(13), MODE_MOUNTAIN);
+    assertConsistent(town);
+    const kinds = [...town.cells.values()].map((c) => c.kind);
+    expect(kinds).toContain(ZONE_ROAD);
+    expect(kinds).toContain(ZONE_WOODS);
+  });
+
+  it('remembers the mode through save and load', () => {
+    const town = new Town(grid);
+    generateTown(town, mulberry32(14), MODE_MOUNTAIN);
+    const copy = new Town(grid);
+    expect(copy.load(town.serialize())).toBe(true);
+    expect(copy.mode).toBe(MODE_MOUNTAIN);
+    expect(copy.load('c2:' + town.serialize().split('|')[1])).toBe(true);
+    expect(copy.mode).toBe(MODE_PASTEL);
+  });
+
+  it('moors caiques only beside a quay', () => {
+    const town = new Town(grid);
+    generateTown(town, mulberry32(15), MODE_ISLAND);
+    for (const [k, c] of town.cells) {
+      if (c.tile !== T.caique) continue;
+      const v = keyV(k);
+      const lvl = keyK(k);
+      expect(grid.edgeNbrs[v].some((n) => [ZONE_PLAZA, ZONE_ROAD].includes(town.kindAt(n, lvl)))).toBe(true);
+    }
   });
 });

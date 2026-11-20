@@ -16,7 +16,11 @@ export const ZONE_PLAZA = 3;
 export const ZONE_WATER = 4;
 export const ZONE_OLIVE = 5;
 export const ZONE_ROCKY = 6;
-export const isZone = (kind: number) => kind >= ZONE_MEADOW && kind <= ZONE_ROCKY;
+/** Streets: island lanes, mountain kalderimi (cobbled mule paths) or plain paths. */
+export const ZONE_ROAD = 7;
+export const isZone = (kind: number) => kind >= ZONE_MEADOW && kind <= ZONE_ROAD;
+/** Land you can walk on to reach a door. */
+export const isWalkableZone = (z: number) => isZone(z) && z !== ZONE_WATER && z !== ZONE_WOODS;
 
 export const ZONES = [
   { id: ZONE_MEADOW, name: 'Meadow', color: '#93cc6e' },
@@ -25,6 +29,7 @@ export const ZONES = [
   { id: ZONE_WATER, name: 'Water', color: '#79c3e2' },
   { id: ZONE_OLIVE, name: 'Olive grove', color: '#a8ad62' },
   { id: ZONE_ROCKY, name: 'Rocky hillside', color: '#c9b78a' },
+  { id: ZONE_ROAD, name: 'Path', color: '#d9cbb0' },
 ] as const;
 
 // ---------------------------------------------------------------- building styles
@@ -94,6 +99,7 @@ export const GROUND_TILES: GroundTile[] = [
   { zone: ZONE_WATER, name: 'reeds', weight: 1.6 },
   { zone: ZONE_WATER, name: 'boat', weight: 0.5 },
   { zone: ZONE_WATER, name: 'rock', weight: 0.4 },
+  { zone: ZONE_WATER, name: 'caique', weight: 2.5 },
   { zone: ZONE_OLIVE, name: 'olives', weight: 2.4 },
   { zone: ZONE_OLIVE, name: 'cypresses', weight: 1 },
   { zone: ZONE_OLIVE, name: 'olive_cypress', weight: 1.2 },
@@ -104,6 +110,10 @@ export const GROUND_TILES: GroundTile[] = [
   { zone: ZONE_ROCKY, name: 'goat', weight: 0.6 },
   { zone: ZONE_ROCKY, name: 'shrine', weight: 0.35 },
   { zone: ZONE_ROCKY, name: 'stones', weight: 1.2 },
+  { zone: ZONE_ROAD, name: 'lane', weight: 2.6 },
+  { zone: ZONE_ROAD, name: 'lane_pots', weight: 1.1 },
+  { zone: ZONE_ROAD, name: 'lane_lamp', weight: 0.7 },
+  { zone: ZONE_ROAD, name: 'lane_cat', weight: 0.35 },
 ];
 
 export const GROUND0 = N_STOREY;
@@ -146,6 +156,8 @@ const FORBIDDEN_PAIRS: [string, string][] = [
   ['goat', 'goat'],
   ['shrine', 'shrine'],
   ['drywall', 'drywall'],
+  ['lane_lamp', 'lane_lamp'],
+  ['lane_cat', 'lane_cat'],
 ];
 const forbidden = new Set<number>();
 for (const [a, b] of FORBIDDEN_PAIRS) {

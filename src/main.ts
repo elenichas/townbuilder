@@ -2,14 +2,15 @@ import * as THREE from 'three';
 import './style.css';
 import { sfx, isMuted, setMuted } from './audio';
 import { ACT_DOWN, ACT_NONE, ACT_UP, H } from './builder';
-import { THEMES, type Theme, generateTown } from './generate';
+import { generateTown } from './generate';
+import { MODE_ISLAND, SKY, modeInfo } from './modes';
 import { cellAt, generateGrid } from './grid';
 import { WALL_HEX } from './palette';
 import { mulberry32, randomSeed } from './rng';
 import { createScene } from './scene';
 import { type HelpTab, initHelp } from './help';
 import { decode, encode } from './share';
-import { KIND_BUILDING, STYLE_ISLAND, STYLE_MOUNTAIN, STYLE_PASTEL, ZONES, ZONE_MEADOW, ZONE_WATER, isZone } from './tiles';
+import { KIND_BUILDING, STYLE_PASTEL, ZONES, ZONE_MEADOW, ZONE_WATER, isZone } from './tiles';
 import { type Change, Town, type Voxel, key, keyK, keyV } from './town';
 import { GRID_OPACITY, Ghost, Puffs, TownView, gridLines } from './view';
 
@@ -151,7 +152,7 @@ function actionFor(hit: Hit | null, t: Tool): Action | null {
 }
 
 const GHOST_COLOR: Record<Action['op'], string> = { add: '#ffffff', remove: '#ff7b7b', reroll: '#ffd65c', paint: '#ffffff', zone: '#ffffff' };
-const zoneColor = (z: number) => ZONES.find((x) => x.id === z)?.color ?? '#ffffff';
+const zoneColor = (z: number) => modeInfo(town.mode).zones.find((x) => x.zone === z)?.color ?? ZONES.find((x) => x.id === z)?.color ?? '#ffffff';
 
 function showGhost(a: Action | null) {
   if (!a) return ghost.hide();
@@ -304,24 +305,10 @@ function setTool(t: Tool) {
     b.setAttribute('aria-pressed', String(on));
   });
   swatches.hidden = t === 'land';
-  styleGroup.hidden = t === 'land';
   zoneSwatches.hidden = t !== 'land';
   refreshHover();
 }
 document.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.addEventListener('click', () => setTool(b.dataset.tool as Tool)));
-
-// Building style: pastel town, Greek island (Cycladic) or Greek mountain (stone).
-const styleGroup = $('styles');
-const STYLE_SUGGESTED_COLOR: Record<number, number> = { [STYLE_ISLAND]: 8, [STYLE_MOUNTAIN]: 9 };
-function setStyle(s: number) {
-  style = s;
-  styleGroup.querySelectorAll<HTMLButtonElement>('[data-style]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.style) === s)));
-  // Greek styles are whitewash or stone; the paint colour becomes doors, shutters and domes.
-  if (s in STYLE_SUGGESTED_COLOR && color < 8) selectColor(STYLE_SUGGESTED_COLOR[s]);
-  if (tool !== 'paint' && tool !== 'build') setTool('build');
-  refreshHover();
-}
-styleGroup.querySelectorAll<HTMLButtonElement>('[data-style]').forEach((b) => b.addEventListener('click', () => setStyle(Number(b.dataset.style))));
 
 const swatches = $('swatches');
 function selectColor(i: number) {
@@ -341,21 +328,68 @@ WALL_HEX.forEach((hex, i) => {
   swatches.appendChild(b);
 });
 
+// Land types offered by the current mode (with the mode's own names, e.g. "Kalderimi").
 const zoneSwatches = $('zones');
-ZONES.forEach((z) => {
-  const b = document.createElement('button');
-  b.className = 'swatch zone' + (z.id === zone ? ' active' : '');
-  b.style.background = z.color;
-  b.title = z.name;
-  b.setAttribute('aria-label', z.name);
-  b.addEventListener('click', () => {
-    zone = z.id;
-    zoneSwatches.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('active', s === b));
-    setTool('land');
-  });
-  zoneSwatches.appendChild(b);
-});
+function renderZoneSwatches() {
+  const choices = modeInfo(town.mode).zones;
+  if (!choices.some((c) => c.zone === zone)) zone = choices[0].zone;
+  zoneSwatches.replaceChildren(
+    ...choices.map((c) => {
+      const b = document.createElement('button');
+      b.className = 'swatch zone' + (c.zone === zone ? ' active' : '');
+      b.style.background = c.color;
+      b.title = c.label;
+      b.setAttribute('aria-label', c.label);
+      b.addEventListener('click', () => {
+        zone = c.zone;
+        zoneSwatches.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('active', s === b));
+        setTool('land');
+      });
+      return b;
+    }),
+  );
+}
 zoneSwatches.hidden = true;
+
+// ---------------------------------------------------------------- modes
+
+const modeButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-mode]')];
+/** Switch the world mode: building style, land palette, landscape colours and sky. */
+function setMode(m: number, opts: { announce?: boolean; rebuild?: boolean } = {}) {
+  const info = modeInfo(m);
+  const changed = town.mode !== m;
+  town.mode = m;
+  style = info.style;
+  selectColor(info.color);
+  renderZoneSwatches();
+  ctx.setSky(...SKY[m]);
+  ctx.setSea(m === MODE_ISLAND);
+  $('hint').textContent = m === MODE_ISLAND ? 'Click the sea to raise an island' : 'Click the clouds to raise an island';
+  modeButtons.forEach((b) => {
+    const on = Number(b.dataset.mode) === m;
+    b.setAttribute('aria-checked', String(on));
+    b.tabIndex = on ? 0 : -1;
+  });
+  $('modeTagline').textContent = info.tagline;
+  document.body.dataset.mode = String(m);
+  if (opts.rebuild !== false && changed) view.rebuildAll();
+  if (opts.announce && changed) {
+    toast(town.cells.size ? `${info.name}: new houses use this style. Try Surprise me for a whole village` : `${info.name}: click the clouds to start, or try Surprise me`);
+    save();
+  }
+  refreshHover();
+}
+modeButtons.forEach((b, i) => {
+  b.addEventListener('click', () => setMode(Number(b.dataset.mode), { announce: true }));
+  b.addEventListener('keydown', (e) => {
+    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const next = modeButtons[(i + d + modeButtons.length) % modeButtons.length];
+    next.click();
+    next.focus();
+  });
+});
 
 let toastTimer = 0;
 function toast(msg: string) {
@@ -375,45 +409,14 @@ function toggleNight(instant = false) {
 }
 $('night').addEventListener('click', () => toggleNight());
 
-function surprise(theme: Theme) {
-  closeSurpriseMenu();
-  replaceTown(() => generateTown(town, mulberry32(randomSeed()), theme));
+/** Grow a whole village for the current mode. */
+function surprise() {
+  replaceTown(() => generateTown(town, mulberry32(randomSeed()), town.mode));
   ctx.resetView();
   puffs.burst(0, 1, 0, 14);
   sfx.reroll(4);
-  const s = theme === 'island' ? STYLE_ISLAND : theme === 'mountain' ? STYLE_MOUNTAIN : STYLE_PASTEL;
-  setStyle(s);
 }
-
-// "Surprise me" opens a little menu of village types.
-const surpriseMenu = $('surpriseMenu');
-for (const t of THEMES) {
-  const b = document.createElement('button');
-  b.textContent = t.name;
-  b.setAttribute('role', 'menuitem');
-  b.addEventListener('click', () => surprise(t.id));
-  surpriseMenu.appendChild(b);
-}
-function closeSurpriseMenu() {
-  surpriseMenu.hidden = true;
-  $('surprise').setAttribute('aria-expanded', 'false');
-}
-$('surprise').addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (!surpriseMenu.hidden) return closeSurpriseMenu();
-  const r = $('surprise').getBoundingClientRect();
-  surpriseMenu.hidden = false;
-  surpriseMenu.style.left = `${Math.min(window.innerWidth - surpriseMenu.offsetWidth - 12, Math.max(12, r.left + r.width / 2 - surpriseMenu.offsetWidth / 2))}px`;
-  surpriseMenu.style.bottom = `${window.innerHeight - r.top + 12}px`;
-  $('surprise').setAttribute('aria-expanded', 'true');
-  (surpriseMenu.firstElementChild as HTMLButtonElement).focus();
-});
-document.addEventListener('click', (e) => {
-  if (!surpriseMenu.hidden && !surpriseMenu.contains(e.target as Node)) closeSurpriseMenu();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !surpriseMenu.hidden) closeSurpriseMenu();
-});
+$('surprise').addEventListener('click', () => surprise());
 
 $('clear').addEventListener('click', () => {
   if (!town.cells.size) return;
@@ -472,7 +475,7 @@ $('helpClose').addEventListener('click', () => {
 });
 $('helpSurprise').addEventListener('click', () => {
   toggleHelp(false);
-  surprise(THEMES[Math.floor(Math.random() * 2)].id);
+  surprise();
 });
 $('help').addEventListener('click', (e) => {
   if (e.target === $('help')) toggleHelp(false);
@@ -497,6 +500,7 @@ if (camParam?.length === 6 && camParam.every(Number.isFinite)) {
 if (new URLSearchParams(location.search).has('night')) toggleNight(true);
 
 void loadInitial().then((loaded) => {
+  setMode(town.mode, { rebuild: false });
   view.rebuildAll();
   afterChange();
   if (seenHelp || loaded) toggleHelp(false);
@@ -509,7 +513,7 @@ function frame(now: number) {
   updateHover();
   view.tick(now);
   puffs.tick(now, dt);
-  (grid3d.material as THREE.LineBasicMaterial).opacity = GRID_OPACITY * (1 - 0.65 * ctx.nightness());
+  (grid3d.material as THREE.LineBasicMaterial).opacity = GRID_OPACITY * (town.mode === MODE_ISLAND ? 0.45 : 1) * (1 - 0.65 * ctx.nightness());
   ctx.tick(dt, now / 1000);
   requestAnimationFrame(frame);
 }
