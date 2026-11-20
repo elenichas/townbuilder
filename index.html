@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Cloudhaven</title>
+    <meta name="description" content="A cozy, goal-free town builder on floating sky islands." />
+    <link rel="icon" href="/assets/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@500;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <header class="brand">
+      <h1>Cloudhaven</h1>
+      <p id="hint">Click the clouds to raise an island</p>
+    </header>
+
+    <div class="modebar">
+      <div class="modes" role="radiogroup" aria-label="Mode">
+        <button data-mode="0" role="radio" aria-checked="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6 8 6M6 10v10h12V10M10 20v-5h4v5" /></svg><span>Pastel town</span>
+        </button>
+        <button data-mode="1" role="radio" aria-checked="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V12h6v8M9 20v-5h7v5M2 20h20M4.5 12a2.5 2.2 0 0 1 4 0M15 10l2-4 2 4M17 6V3" /></svg><span>Greek island</span>
+        </button>
+        <button data-mode="2" role="radio" aria-checked="false" tabindex="-1">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20l6-10 3 4 3-5 8 11zM9 20v-4h4v4M8.5 16l2.5-2 2.5 2" /></svg><span>Greek mountain village</span>
+        </button>
+      </div>
+    </div>
+
+    <nav class="toolbar" aria-label="Tools">
+      <div class="group" role="radiogroup" aria-label="Tool">
+        <button data-tool="build" class="tool active" title="Build (1)" aria-pressed="true">
+          <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" /></svg><span>Build</span>
+        </button>
+        <button data-tool="land" class="tool" title="Land (2): paint the ground (the choices change with the mode). Click again to raise a hill" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M2 19l6-9 4 5 3-4 7 8zM16 6.5a2 2 0 1 0 0-.01" /></svg><span>Land</span>
+        </button>
+        <button data-tool="restyle" class="tool" title="Restyle (3) · or Alt/Option-click" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" /></svg><span>Restyle</span>
+        </button>
+        <button data-tool="paint" class="tool" title="Paint (4) · or Shift-click. Applies the selected colour and the current mode's building style" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M18 3l3 3-9 9-3-3zM9 12l-3 3a3 3 0 0 0-3 3v3h3a3 3 0 0 0 3-3l3-3" /></svg><span>Paint</span>
+        </button>
+        <button data-tool="erase" class="tool" title="Erase (5) · or right-click" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M20 20H9M3.5 14.5l9-9a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3L13 19H8z" /></svg><span>Erase</span>
+        </button>
+      </div>
+      <div class="group swatches" id="swatches" aria-label="Colour"></div>
+      <div class="group swatches" id="zones" aria-label="Land type"></div>
+      <div class="group">
+        <button id="undo" title="Undo (Ctrl/Cmd+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" /></svg></button>
+        <button id="redo" title="Redo (Ctrl/Cmd+Shift+Z)"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3" /></svg></button>
+      </div>
+      <div class="group">
+        <button id="night" title="Day / night (N)"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg></button>
+        <button id="surprise" title="Surprise me: grow a whole village in the current mode"><svg viewBox="0 0 24 24"><path d="M15 4V2M15 10V8M11 6h2M17 6h2M4 20L14 10M18 13l.6 1.4L20 15l-1.4.6L18 17l-.6-1.4L16 15l1.4-.6z" /></svg></button>
+        <button id="share" title="Copy a link to this town"><svg viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg></button>
+        <button id="photo" title="Save a picture"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" /></svg></button>
+        <button id="sound" title="Sound on/off"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7" /></svg></button>
+        <button id="clear" title="Start over"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></button>
+        <button id="helpBtn" title="How to play (?)"><svg viewBox="0 0 24 24"><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01" /></svg></button>
+      </div>
+    </nav>
+
+    <div id="help" class="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="card">
+        <header class="help-head">
+          <div>
+            <h2 id="helpTitle">Welcome to Cloudhaven</h2>
+            <p class="lead">No goals, no rush. Just build a little town in the sky.</p>
+          </div>
+        </header>
+        <div class="tabs" role="tablist" aria-label="Help topics"><button role="tab" id="tab-play" data-tab="play" aria-controls="panel-play" aria-selected="true" tabindex="0">How to play</button><button role="tab" id="tab-grid" data-tab="grid" aria-controls="panel-grid" aria-selected="false" tabindex="-1">The grid</button><button role="tab" id="tab-wfc" data-tab="wfc" aria-controls="panel-wfc" aria-selected="false" tabindex="-1">WFC demo</button><button role="tab" id="tab-rules" data-tab="rules" aria-controls="panel-rules" aria-selected="false" tabindex="-1">Neighbour rules</button><button role="tab" id="tab-game" data-tab="game" aria-controls="panel-game" aria-selected="false" tabindex="-1">In the game</button><button role="tab" id="tab-greek" data-tab="greek" aria-controls="panel-greek" aria-selected="false" tabindex="-1">Greek villages</button><button role="tab" id="tab-terrain" data-tab="terrain" aria-controls="panel-terrain" aria-selected="false" tabindex="-1">Terrain &amp; more</button></div>
+
+        <section id="panel-play" role="tabpanel" aria-labelledby="tab-play" class="panel">
+          <div class="tips"><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/></svg><div><h4>Pick a mode, raise land</h4><p>Choose <b>Pastel town</b>, <b>Greek island</b> or <b>Greek mountain village</b> at the top. Then click the clouds (or the sea) to add land.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><div><h4>Build</h4><p>Click land or a roof to build up, a wall to build sideways. Overhangs become arches and bridges.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 19l6-9 4 5 3-4 7 8zM16 6.5a2 2 0 1 0 0-.01"/></svg><div><h4>Shape the land</h4><p>The <b>Land</b> tool offers the mode’s land: lanes, kalderimi paths, squares, olive groves, forest, sea. Click the same land again to raise a hill.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z"/></svg><div><h4>Restyle</h4><p>Click any piece for a different version. The pieces around it change to match. Shortcut: <kbd>Alt</kbd>/<kbd>⌥</kbd>-click.</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 3l3 3-9 9-3-3zM9 12l-3 3a3 3 0 0 0-3 3v3h3a3 3 0 0 0 3-3l3-3"/></svg><div><h4>Paint &amp; erase</h4><p><b>Paint</b> recolours (walls, or doors and shutters on Greek houses) and applies the mode’s style (<kbd>Shift</kbd>-click). <b>Erase</b> removes a piece (right-click).</p></div></article><article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 12c0-3 4-5 9-5s9 2 9 5-4 5-9 5M8 17l-2 0 1 2"/></svg><div><h4>Look around</h4><p>Drag to orbit, right-drag to pan, scroll or pinch to zoom.</p></div></article></div>
+          <p class="keys"><b>Keys</b> <kbd>1</kbd>–<kbd>5</kbd> tools · <kbd>N</kbd> day/night · <kbd>Ctrl/Cmd</kbd>+<kbd>Z</kbd> undo (add <kbd>Shift</kbd> to redo) · <kbd>?</kbd> this guide</p>
+          <p class="more">Curious how it all fits together? The other tabs show the algorithms behind the town.</p>
+        </section>
+
+        <section id="panel-grid" role="tabpanel" aria-labelledby="tab-grid" class="panel" hidden>
+          <p class="intro">The map isn’t a square grid. It’s built in four steps, and the pictures below are drawn by the game’s own grid code.</p>
+          <div class="grid-steps" id="gridSteps"></div>
+          <div class="split">
+            <svg id="dualCell" class="dual" role="img" aria-label="One corner of the grid and the cell it owns"></svg>
+            <div>
+              <h3>You build on corners</h3>
+              <p>Each grid corner (the dot) owns the quarter of every quad around it. Together those quarters make its <b>cell</b>, the shape you see when hovering.</p>
+              <p>Stack cells in levels and you get a column of <b>voxels</b>: land at the bottom, houses above. Because every quad still has exactly four corners, the same simple building rules work everywhere, even though no two cells are the same shape.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-wfc" role="tabpanel" aria-labelledby="tab-wfc" class="panel" hidden>
+          <div class="split wide-left">
+            <div id="wfcDemo" class="demo">
+              <canvas aria-label="Wave Function Collapse demo grid. Click a small square inside a cell to choose that tile."></canvas>
+              <div class="demo-controls">
+                <button data-demo="step" class="primary">Step</button>
+                <button data-demo="play" aria-pressed="false">Play</button>
+                <button data-demo="reset">New puzzle</button>
+              </div>
+              <p class="demo-caption" aria-live="polite"></p>
+            </div>
+            <div>
+              <h3>The one rule in this demo</h3>
+              <p>A tile may only touch itself or its neighbour in this chain:</p>
+              <div class="chain"><span class="chip" style="--c:#79c3e2">Water</span><i></i><span class="chip" style="--c:#ead9a8">Sand</span><i></i><span class="chip" style="--c:#93cc6e">Grass</span><i></i><span class="chip" style="--c:#4f9a63">Forest</span></div>
+              <p class="small">So water can touch sand but never grass, and forest can only grow next to grass.</p>
+              <ol id="wfcSteps" class="steps-list">
+                <li><b>Start open.</b> Every cell could be any tile (the four small squares).</li>
+                <li><b>Pick.</b> Choose the cell with the <i>fewest</i> options left (lowest “entropy”).</li>
+                <li><b>Collapse.</b> Decide that cell: a weighted random pick from what’s still allowed.</li>
+                <li><b>Propagate.</b> Neighbours drop tiles that can’t touch it, then <i>their</i> neighbours, and so on. Watch the ripple.</li>
+              </ol>
+              <p class="small">Repeat until every cell is decided. Clicking a small square yourself is exactly what building does in the game: you decide one thing, and the rules ripple out.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-rules" role="tabpanel" aria-labelledby="tab-rules" class="panel" hidden>
+          <p class="intro">In the game, the demo’s chain becomes checks between <b>two neighbouring pieces</b>. Left: allowed. Right: ruled out.</p>
+          <div class="rules"><article class="rule"><svg viewBox="0 0 240 108" role="img" aria-label="A floor shares one window style: allowed on the left, not allowed on the right"><g><rect x="14" y="44" width="46" height="56" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="21.880000000000003" y="51" width="10" height="16" rx="5" fill="#4c6688"/><rect x="21.880000000000003" y="73" width="10" height="16" rx="5" fill="#4c6688"/><rect x="42.12" y="51" width="10" height="16" rx="5" fill="#4c6688"/><rect x="42.12" y="73" width="10" height="16" rx="5" fill="#4c6688"/><rect x="60" y="44" width="46" height="56" fill="#f4b3a3" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="67.88" y="51" width="10" height="16" rx="5" fill="#4c6688"/><rect x="67.88" y="73" width="10" height="16" rx="5" fill="#4c6688"/><rect x="88.12" y="51" width="10" height="16" rx="5" fill="#4c6688"/><rect x="88.12" y="73" width="10" height="16" rx="5" fill="#4c6688"/><polygon points="9,46 60.0,22 111,46" fill="#d06f55"/></g><path d="M120 6 V102" stroke="#e7e0d3" stroke-width="1.5"/><g><rect x="134" y="44" width="46" height="56" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="141.88" y="51" width="10" height="16" rx="5" fill="#4c6688"/><rect x="141.88" y="73" width="10" height="16" rx="5" fill="#4c6688"/><rect x="162.12" y="51" width="10" height="16" rx="5" fill="#4c6688"/><rect x="162.12" y="73" width="10" height="16" rx="5" fill="#4c6688"/><rect x="180" y="44" width="46" height="56" fill="#f4b3a3" stroke="#3d3a4f" stroke-opacity=".25"/><circle cx="192.88" cy="59" r="6" fill="#4c6688"/><circle cx="192.88" cy="81" r="6" fill="#4c6688"/><circle cx="213.12" cy="59" r="6" fill="#4c6688"/><circle cx="213.12" cy="81" r="6" fill="#4c6688"/><polygon points="129,46 180.0,22 231,46" fill="#d06f55"/><rect x="176" y="48" width="8" height="48" fill="#d9534f" opacity=".25"/></g><circle cx="12" cy="12" r="9" fill="#3f9b5f"/><path d="M8 12 l3 3 l5 -6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="132" cy="12" r="9" fill="#d9534f"/><path d="M128.5 8.5 l7 7 M135.5 8.5 l-7 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg><h4>A floor shares one window style</h4><p>Storeys side by side on the same level must use the same windows, so a row of houses reads as one building.</p></article><article class="rule"><svg viewBox="0 0 240 108" role="img" aria-label="Touching roofs match: allowed on the left, not allowed on the right"><g><rect x="14" y="44" width="46" height="56" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="21.380000000000003" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M26.880000000000003 52.5 v13 M21.380000000000003 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="21.380000000000003" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M26.880000000000003 74.5 v13 M21.380000000000003 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="41.62" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M47.12 52.5 v13 M41.62 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="41.62" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M47.12 74.5 v13 M41.62 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="60" y="44" width="46" height="56" fill="#a8d8c6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="67.38" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M72.88 52.5 v13 M67.38 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="67.38" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M72.88 74.5 v13 M67.38 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="87.62" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M93.12 52.5 v13 M87.62 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="87.62" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M93.12 74.5 v13 M87.62 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><polygon points="9,46 60.0,22 111,46" fill="#d06f55"/></g><path d="M120 6 V102" stroke="#e7e0d3" stroke-width="1.5"/><g><rect x="134" y="44" width="46" height="56" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="141.38" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M146.88 52.5 v13 M141.38 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="141.38" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M146.88 74.5 v13 M141.38 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="161.62" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M167.12 52.5 v13 M161.62 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="161.62" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M167.12 74.5 v13 M161.62 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="180" y="44" width="46" height="56" fill="#a8d8c6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="187.38" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M192.88 52.5 v13 M187.38 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="187.38" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M192.88 74.5 v13 M187.38 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="207.62" y="52.5" width="11" height="13" fill="#4c6688"/><path d="M213.12 52.5 v13 M207.62 59 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="207.62" y="74.5" width="11" height="13" fill="#4c6688"/><path d="M213.12 74.5 v13 M207.62 81 h11" stroke="#fbf7ef" stroke-width="1.4"/><polygon points="130,46 157,4 184,46" fill="#5a7db3"/><rect x="178" y="36" width="50" height="9" fill="#a8d8c6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="176" y="30" width="8" height="66" fill="#d9534f" opacity=".25"/></g><circle cx="12" cy="12" r="9" fill="#3f9b5f"/><path d="M8 12 l3 3 l5 -6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="132" cy="12" r="9" fill="#d9534f"/><path d="M128.5 8.5 l7 7 M135.5 8.5 l-7 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg><h4>Touching roofs match</h4><p>Neighbouring roofs share a type (hip, spire or flat terrace) so their ridges meet in one smooth roof.</p></article><article class="rule"><svg viewBox="0 0 240 108" role="img" aria-label="Doors open onto walkable ground: allowed on the left, not allowed on the right"><g><rect x="20" y="40" width="58" height="56" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><polygon points="15,46 49.0,22 83,46" fill="#d06f55"/><rect x="28.5" y="49.5" width="11" height="13" fill="#4c6688"/><path d="M34 49.5 v13 M28.5 56 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="58.5" y="49.5" width="11" height="13" fill="#4c6688"/><path d="M64 49.5 v13 M58.5 56 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="43" y="78" width="12" height="18" rx="6" fill="#8d5b3c"/><rect x="4" y="96" width="112" height="9" fill="#e2d6c0"/><path d="M98 95 v-24" stroke="#4b4f5c" stroke-width="2"/><circle cx="98" cy="70" r="3.6" fill="#ffe3a3" stroke="#4b4f5c" stroke-width="1"/></g><path d="M120 6 V102" stroke="#e7e0d3" stroke-width="1.5"/><g><rect x="140" y="40" width="58" height="56" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><polygon points="135,46 169.0,22 203,46" fill="#d06f55"/><rect x="148.5" y="49.5" width="11" height="13" fill="#4c6688"/><path d="M154 49.5 v13 M148.5 56 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="178.5" y="49.5" width="11" height="13" fill="#4c6688"/><path d="M184 49.5 v13 M178.5 56 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="163" y="78" width="12" height="18" rx="6" fill="#8d5b3c"/><rect x="124" y="96" width="112" height="9" fill="#93cc6e"/><rect x="168.0" y="90.25" width="4.0" height="13.75" fill="#8a644a"/><circle cx="170" cy="81.5" r="12.5" fill="#6fbf5b"/></g><circle cx="12" cy="12" r="9" fill="#3f9b5f"/><path d="M8 12 l3 3 l5 -6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="132" cy="12" r="9" fill="#d9534f"/><path d="M128.5 8.5 l7 7 M135.5 8.5 l-7 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg><h4>Doors open onto walkable ground</h4><p>A door or shop must face open land, and that land can’t be a tree, fountain, market stall or planter.</p></article><article class="rule"><svg viewBox="0 0 240 108" role="img" aria-label="Woods grow in stands: allowed on the left, not allowed on the right"><g><rect x="10" y="74" width="33" height="26" fill="#93cc6e" stroke="#fff" stroke-width="1.5"/><rect x="43" y="74" width="33" height="26" fill="#93cc6e" stroke="#fff" stroke-width="1.5"/><rect x="76" y="74" width="33" height="26" fill="#93cc6e" stroke="#fff" stroke-width="1.5"/><rect x="18.65" y="80.6" width="2.7" height="5.4" fill="#8a644a"/><polygon points="11.9,81.5 28.1,81.5 20,66.2" fill="#4f9a63"/><polygon points="13.7,74.3 26.3,74.3 20,59.9" fill="#4f9a63"/><rect x="32.8" y="85.2" width="2.4000000000000004" height="4.800000000000001" fill="#8a644a"/><polygon points="26.8,86.0 41.2,86.0 34,72.4" fill="#4f9a63"/><polygon points="28.4,79.6 39.6,79.6 34,66.8" fill="#4f9a63"/><rect x="52.65" y="80.6" width="2.7" height="5.4" fill="#8a644a"/><polygon points="45.9,81.5 62.1,81.5 54,66.2" fill="#4f9a63"/><polygon points="47.7,74.3 60.3,74.3 54,59.9" fill="#4f9a63"/><rect x="64.8" y="81.75" width="2.4000000000000004" height="8.25" fill="#8a644a"/><circle cx="66" cy="76.5" r="7.5" fill="#6fbf5b"/><rect x="84.64" y="76.65" width="2.72" height="9.35" fill="#8a644a"/><circle cx="86" cy="70.7" r="8.5" fill="#6fbf5b"/><rect x="98.8" y="81.75" width="2.4000000000000004" height="8.25" fill="#8a644a"/><circle cx="100" cy="76.5" r="7.5" fill="#6fbf5b"/></g><path d="M120 6 V102" stroke="#e7e0d3" stroke-width="1.5"/><g><rect x="146" y="74" width="33" height="26" fill="#93cc6e" stroke="#fff" stroke-width="1.5"/><rect x="179" y="74" width="33" height="26" fill="#93cc6e" stroke="#fff" stroke-width="1.5"/><rect x="155.65" y="80.6" width="2.7" height="5.4" fill="#8a644a"/><polygon points="148.9,81.5 165.1,81.5 157,66.2" fill="#4f9a63"/><polygon points="150.7,74.3 163.3,74.3 157,59.9" fill="#4f9a63"/><rect x="168.8" y="85.2" width="2.4000000000000004" height="4.800000000000001" fill="#8a644a"/><polygon points="162.8,86.0 177.2,86.0 170,72.4" fill="#4f9a63"/><polygon points="164.4,79.6 175.6,79.6 170,66.8" fill="#4f9a63"/><rect x="190.56" y="78.1" width="2.8800000000000003" height="9.9" fill="#8a644a"/><circle cx="192" cy="71.8" r="9.0" fill="#6fbf5b"/><rect x="202.88" y="84.3" width="2.2399999999999998" height="7.699999999999999" fill="#8a644a"/><circle cx="204" cy="79.4" r="7.0" fill="#6fbf5b"/><rect x="176" y="40" width="6" height="62" fill="#d9534f" opacity=".3"/></g><circle cx="12" cy="12" r="9" fill="#3f9b5f"/><path d="M8 12 l3 3 l5 -6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="132" cy="12" r="9" fill="#d9534f"/><path d="M128.5 8.5 l7 7 M135.5 8.5 l-7 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg><h4>Woods grow in stands</h4><p>Pines and oaks never touch directly; a mixed grove sits between them. Clearings are never side by side.</p></article><article class="rule"><svg viewBox="0 0 240 108" role="img" aria-label="Squares stay roomy: allowed on the left, not allowed on the right"><g><rect x="10" y="74" width="33" height="26" fill="#e2d6c0" stroke="#fff" stroke-width="1.5"/><rect x="43" y="74" width="33" height="26" fill="#e2d6c0" stroke="#fff" stroke-width="1.5"/><rect x="76" y="74" width="33" height="26" fill="#e2d6c0" stroke="#fff" stroke-width="1.5"/><rect x="14" y="84" width="24" height="7" rx="2" fill="#d8cebf" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="24.5" y="72" width="3" height="13" fill="#d8cebf"/><path d="M26 72 q-6 2 -8 10 M26 72 q6 2 8 10" fill="none" stroke="#79c3e2" stroke-width="2"/><rect x="49" y="83" width="20" height="3" fill="#8d5b3c"/><rect x="49" y="76" width="20" height="3" fill="#8d5b3c"/><path d="M51 86 v5 M67 86 v5" stroke="#4b4f5c" stroke-width="1.6"/><path d="M92 91 v-24" stroke="#4b4f5c" stroke-width="2"/><circle cx="92" cy="66" r="3.6" fill="#ffe3a3" stroke="#4b4f5c" stroke-width="1"/></g><path d="M120 6 V102" stroke="#e7e0d3" stroke-width="1.5"/><g><rect x="146" y="74" width="33" height="26" fill="#e2d6c0" stroke="#fff" stroke-width="1.5"/><rect x="179" y="74" width="33" height="26" fill="#e2d6c0" stroke="#fff" stroke-width="1.5"/><rect x="150" y="84" width="24" height="7" rx="2" fill="#d8cebf" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="160.5" y="72" width="3" height="13" fill="#d8cebf"/><path d="M162 72 q-6 2 -8 10 M162 72 q6 2 8 10" fill="none" stroke="#79c3e2" stroke-width="2"/><rect x="183" y="84" width="24" height="7" rx="2" fill="#d8cebf" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="193.5" y="72" width="3" height="13" fill="#d8cebf"/><path d="M195 72 q-6 2 -8 10 M195 72 q6 2 8 10" fill="none" stroke="#79c3e2" stroke-width="2"/><rect x="176" y="50" width="6" height="52" fill="#d9534f" opacity=".3"/></g><circle cx="12" cy="12" r="9" fill="#3f9b5f"/><path d="M8 12 l3 3 l5 -6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="132" cy="12" r="9" fill="#d9534f"/><path d="M128.5 8.5 l7 7 M135.5 8.5 l-7 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg><h4>Squares stay roomy</h4><p>No two fountains or two lamps side by side, and a fountain never sits next to a market stall.</p></article><article class="rule"><svg viewBox="0 0 240 108" role="img" aria-label="Reeds by the shore, boats offshore: allowed on the left, not allowed on the right"><g><rect x="4" y="74" width="12" height="26" fill="#93cc6e"/><rect x="104" y="74" width="12" height="26" fill="#93cc6e"/><rect x="16.0" y="74" width="29.3" height="26" fill="#79c3e2" stroke="#fff" stroke-width="1.5"/><rect x="45.3" y="74" width="29.3" height="26" fill="#79c3e2" stroke="#fff" stroke-width="1.5"/><rect x="74.6" y="74" width="29.3" height="26" fill="#79c3e2" stroke="#fff" stroke-width="1.5"/><path d="M24 91 v-18" stroke="#8fa24a" stroke-width="1.8"/><path d="M28 91 v-24" stroke="#8fa24a" stroke-width="1.8"/><path d="M32 91 v-20" stroke="#8fa24a" stroke-width="1.8"/><path d="M36 91 v-16" stroke="#8fa24a" stroke-width="1.8"/><rect x="27" y="66" width="2.4" height="7" rx="1.2" fill="#8a644a"/><path d="M49 87 h22 l-5 6 h-12 z" fill="#8d5b3c"/><path d="M60 86 v-18 l9 16 z" fill="#fbf7ef" stroke="#3d3a4f" stroke-opacity=".3"/><path d="M84 91 v-18" stroke="#8fa24a" stroke-width="1.8"/><path d="M88 91 v-24" stroke="#8fa24a" stroke-width="1.8"/><path d="M92 91 v-20" stroke="#8fa24a" stroke-width="1.8"/><path d="M96 91 v-16" stroke="#8fa24a" stroke-width="1.8"/><rect x="87" y="66" width="2.4" height="7" rx="1.2" fill="#8a644a"/></g><path d="M120 6 V102" stroke="#e7e0d3" stroke-width="1.5"/><g><rect x="124" y="74" width="12" height="26" fill="#93cc6e"/><rect x="224" y="74" width="12" height="26" fill="#93cc6e"/><rect x="136.0" y="74" width="29.3" height="26" fill="#79c3e2" stroke="#fff" stroke-width="1.5"/><rect x="165.3" y="74" width="29.3" height="26" fill="#79c3e2" stroke="#fff" stroke-width="1.5"/><rect x="194.6" y="74" width="29.3" height="26" fill="#79c3e2" stroke="#fff" stroke-width="1.5"/><path d="M139 87 h22 l-5 6 h-12 z" fill="#8d5b3c"/><path d="M150 86 v-18 l9 16 z" fill="#fbf7ef" stroke="#3d3a4f" stroke-opacity=".3"/><path d="M174 91 v-18" stroke="#8fa24a" stroke-width="1.8"/><path d="M178 91 v-24" stroke="#8fa24a" stroke-width="1.8"/><path d="M182 91 v-20" stroke="#8fa24a" stroke-width="1.8"/><path d="M186 91 v-16" stroke="#8fa24a" stroke-width="1.8"/><rect x="177" y="66" width="2.4" height="7" rx="1.2" fill="#8a644a"/><rect x="166" y="52" width="29" height="50" fill="#d9534f" opacity=".2"/></g><circle cx="12" cy="12" r="9" fill="#3f9b5f"/><path d="M8 12 l3 3 l5 -6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="132" cy="12" r="9" fill="#d9534f"/><path d="M128.5 8.5 l7 7 M135.5 8.5 l-7 7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg><h4>Reeds by the shore, boats offshore</h4><p>This is a context rule: reeds only grow in water next to land, and boats only float where water surrounds them.</p></article></div>
+        </section>
+
+        <section id="panel-game" role="tabpanel" aria-labelledby="tab-game" class="panel" hidden>
+          <div class="trio">
+            <article>
+              <svg viewBox="0 0 220 146" role="img" aria-label="Only the cells near the click are re-solved; the rest stay fixed"><rect class="r-fixed" x="6" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="29" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="52" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="75" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="98" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="121" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="144" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="167" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="190" y="4" width="21" height="21" rx="3"/><rect class="r-fixed" x="6" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="29" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="52" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="75" y="27" width="21" height="21" rx="3"/><rect class="r-solve" x="98" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="121" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="144" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="167" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="190" y="27" width="21" height="21" rx="3"/><rect class="r-fixed" x="6" y="50" width="21" height="21" rx="3"/><rect class="r-fixed" x="29" y="50" width="21" height="21" rx="3"/><rect class="r-fixed" x="52" y="50" width="21" height="21" rx="3"/><rect class="r-solve" x="75" y="50" width="21" height="21" rx="3"/><rect class="r-solve" x="98" y="50" width="21" height="21" rx="3"/><rect class="r-solve" x="121" y="50" width="21" height="21" rx="3"/><rect class="r-fixed" x="144" y="50" width="21" height="21" rx="3"/><rect class="r-fixed" x="167" y="50" width="21" height="21" rx="3"/><rect class="r-fixed" x="190" y="50" width="21" height="21" rx="3"/><rect class="r-fixed" x="6" y="73" width="21" height="21" rx="3"/><rect class="r-fixed" x="29" y="73" width="21" height="21" rx="3"/><rect class="r-solve" x="52" y="73" width="21" height="21" rx="3"/><rect class="r-solve" x="75" y="73" width="21" height="21" rx="3"/><rect class="r-click" x="98" y="73" width="21" height="21" rx="3"/><rect class="r-solve" x="121" y="73" width="21" height="21" rx="3"/><rect class="r-solve" x="144" y="73" width="21" height="21" rx="3"/><rect class="r-fixed" x="167" y="73" width="21" height="21" rx="3"/><rect class="r-fixed" x="190" y="73" width="21" height="21" rx="3"/><rect class="r-fixed" x="6" y="96" width="21" height="21" rx="3"/><rect class="r-fixed" x="29" y="96" width="21" height="21" rx="3"/><rect class="r-fixed" x="52" y="96" width="21" height="21" rx="3"/><rect class="r-solve" x="75" y="96" width="21" height="21" rx="3"/><rect class="r-solve" x="98" y="96" width="21" height="21" rx="3"/><rect class="r-solve" x="121" y="96" width="21" height="21" rx="3"/><rect class="r-fixed" x="144" y="96" width="21" height="21" rx="3"/><rect class="r-fixed" x="167" y="96" width="21" height="21" rx="3"/><rect class="r-fixed" x="190" y="96" width="21" height="21" rx="3"/><rect class="r-fixed" x="6" y="119" width="21" height="21" rx="3"/><rect class="r-fixed" x="29" y="119" width="21" height="21" rx="3"/><rect class="r-fixed" x="52" y="119" width="21" height="21" rx="3"/><rect class="r-fixed" x="75" y="119" width="21" height="21" rx="3"/><rect class="r-solve" x="98" y="119" width="21" height="21" rx="3"/><rect class="r-fixed" x="121" y="119" width="21" height="21" rx="3"/><rect class="r-fixed" x="144" y="119" width="21" height="21" rx="3"/><rect class="r-fixed" x="167" y="119" width="21" height="21" rx="3"/><rect class="r-fixed" x="190" y="119" width="21" height="21" rx="3"/></svg>
+              <div class="legend"><span class="lg click"></span>your click <span class="lg solve"></span>re-solved <span class="lg fixed"></span>stays fixed</div>
+              <h3>Only near your click</h3>
+              <p>An edit re-solves just the pieces around it. Everything else stays as it is and acts as a fixed edge the new pieces must fit. If that area can’t be solved, it grows until it can.</p>
+            </article>
+            <article>
+              <div class="race" aria-label="Example: each roof option has a fixed lottery number; the lowest allowed number wins">
+                <div class="race-row"><span class="tag">All allowed</span><span class="opt">Hip <em>0.42</em></span><span class="opt win">Flat <em>0.17</em></span><span class="opt">Spire <em>0.63</em></span></div>
+                <div class="race-row"><span class="tag">Spire ruled out</span><span class="opt">Hip <em>0.42</em></span><span class="opt win">Flat <em>0.17</em></span><span class="opt out">Spire <em>0.63</em></span></div>
+                <div class="race-row"><span class="tag">Flat ruled out</span><span class="opt win">Hip <em>0.42</em></span><span class="opt out">Flat <em>0.17</em></span><span class="opt">Spire <em>0.63</em></span></div>
+              </div>
+              <h3>Stable randomness</h3>
+              <p>Every piece has its own seed, which gives each option a fixed “lottery number”. The lowest number that’s still allowed wins, so ruling out some <i>other</i> option never changes the result. Building next door won’t reshuffle your town.</p>
+            </article>
+            <article>
+              <svg viewBox="0 0 250 100" role="img" aria-label="Restyling the middle house changes the window style of the whole floor"><rect x="4" y="42" width="32" height="50" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="7.960000000000001" y="49" width="10" height="16" rx="5" fill="#4c6688"/><rect x="7.960000000000001" y="71" width="10" height="16" rx="5" fill="#4c6688"/><rect x="22.04" y="49" width="10" height="16" rx="5" fill="#4c6688"/><rect x="22.04" y="71" width="10" height="16" rx="5" fill="#4c6688"/><rect x="36" y="42" width="32" height="50" fill="#f4b3a3" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="39.96" y="49" width="10" height="16" rx="5" fill="#4c6688"/><rect x="39.96" y="71" width="10" height="16" rx="5" fill="#4c6688"/><rect x="54.04" y="49" width="10" height="16" rx="5" fill="#4c6688"/><rect x="54.04" y="71" width="10" height="16" rx="5" fill="#4c6688"/><rect x="68" y="42" width="32" height="50" fill="#a8d8c6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="71.96000000000001" y="49" width="10" height="16" rx="5" fill="#4c6688"/><rect x="71.96000000000001" y="71" width="10" height="16" rx="5" fill="#4c6688"/><rect x="86.03999999999999" y="49" width="10" height="16" rx="5" fill="#4c6688"/><rect x="86.03999999999999" y="71" width="10" height="16" rx="5" fill="#4c6688"/><polygon points="0,44 52,14 104,44" fill="#d06f55"/><path d="M112 66 h22 m-7 -6 l7 6 -7 6" fill="none" stroke="#3d3a4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="146" y="42" width="32" height="50" fill="#f6ead6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="149.46" y="50.5" width="11" height="13" fill="#4c6688"/><path d="M154.96 50.5 v13 M149.46 57 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="149.46" y="72.5" width="11" height="13" fill="#4c6688"/><path d="M154.96 72.5 v13 M149.46 79 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="163.54" y="50.5" width="11" height="13" fill="#4c6688"/><path d="M169.04 50.5 v13 M163.54 57 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="163.54" y="72.5" width="11" height="13" fill="#4c6688"/><path d="M169.04 72.5 v13 M163.54 79 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="178" y="42" width="32" height="50" fill="#f4b3a3" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="181.46" y="50.5" width="11" height="13" fill="#4c6688"/><path d="M186.96 50.5 v13 M181.46 57 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="181.46" y="72.5" width="11" height="13" fill="#4c6688"/><path d="M186.96 72.5 v13 M181.46 79 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="195.54" y="50.5" width="11" height="13" fill="#4c6688"/><path d="M201.04 50.5 v13 M195.54 57 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="195.54" y="72.5" width="11" height="13" fill="#4c6688"/><path d="M201.04 72.5 v13 M195.54 79 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="210" y="42" width="32" height="50" fill="#a8d8c6" stroke="#3d3a4f" stroke-opacity=".25"/><rect x="213.46" y="50.5" width="11" height="13" fill="#4c6688"/><path d="M218.96 50.5 v13 M213.46 57 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="213.46" y="72.5" width="11" height="13" fill="#4c6688"/><path d="M218.96 72.5 v13 M213.46 79 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="227.54" y="50.5" width="11" height="13" fill="#4c6688"/><path d="M233.04 50.5 v13 M227.54 57 h11" stroke="#fbf7ef" stroke-width="1.4"/><rect x="227.54" y="72.5" width="11" height="13" fill="#4c6688"/><path d="M233.04 72.5 v13 M227.54 79 h11" stroke="#fbf7ef" stroke-width="1.4"/><polygon points="142,44 194,14 246,44" fill="#d06f55"/><rect x="177" y="41" width="34" height="52" fill="none" stroke="#ef8a6f" stroke-width="3" rx="2"/><path d="M194 2 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#ffd166"/></svg>
+              <h3>Restyle</h3>
+              <p>Restyle gives the clicked piece a new seed and solves it first, ruling out what it was. Its neighbours re-solve around it, so a whole floor can switch window style together. Everything that changed pops.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-greek" role="tabpanel" aria-labelledby="tab-greek" class="panel" hidden>
+          <p class="intro">Pick <b>Greek island</b> or <b>Greek mountain village</b> at the top, then <b>Surprise me</b> grows a whole Chora and port, or a mountain village.</p>
+          <div class="greek">
+            <article>
+              <svg viewBox="0 0 300 150" role="img" aria-label="An island village: a windmill, whitewashed cube houses with blue doors, and a blue-domed chapel with a bell gable">
+  <rect x="0" y="120" width="300" height="30" fill="#c9b78a"/>
+  <rect x="0" y="118" width="300" height="5" fill="#a8ad62"/>
+  <rect x="20" y="52" width="34" height="68" rx="4" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <polygon points="16,54 37,22 58,54" fill="#9b7a52"/>
+  <g stroke="#5e3f2a" stroke-width="1.6"><line x1="58" y1="44" x2="91.32226364660221" y2="50.75475724703208"/><line x1="58" y1="44" x2="76.7973458912468" y2="72.33125107447299"/><line x1="58" y1="44" x2="51.27178030329029" y2="77.32763207479354"/><line x1="58" y1="44" x2="29.683726737088907" y2="62.81990086318592"/><line x1="58" y1="44" x2="24.667020631277445" y2="37.29832212022121"/><line x1="58" y1="44" x2="39.15755609925783" y2="15.698722505028432"/><line x1="58" y1="44" x2="64.67513181307044" y2="10.661694475001653"/><line x1="58" y1="44" x2="86.28626378016378" y2="25.135025010379834"/></g>
+  <polygon points="65.84053262272994,45.58935464636049 89.36213049091972,50.35741858544196 82.25741684754041,59.89269416696433" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/><polygon points="62.42290491558748,50.66617672340541 75.69161966234994,70.66470689362163 63.926055685432125,72.38805847558366" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/><polygon points="56.41688948312713,51.84179578230437 51.667557932508515,75.36718312921745 42.12662770107214,68.27006493315643" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/><polygon points="51.33734746755033,48.42821196780845 31.349389870201325,61.71284787123381 29.616669601797557,49.94865997569849" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/><polygon points="50.15694603088881,42.42313461652264 26.62778412355524,37.692538466090554 33.717302371757484,28.14595963499067" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/><polygon points="53.566483788060665,37.3408758835361 40.26593515224266,17.363503534144407 52.028739506296546,15.621415678079774" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/><polygon points="59.57061925013422,36.15569281764745 64.28247700053689,12.622771270589794 73.8346983774678,19.704685075212165" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/><polygon points="64.65559147768559,39.561182355383494 84.62236591074239,26.24472942153396 86.37382024974667,38.00614277488482" fill="#f4efe2" stroke="#3d3a4f" stroke-opacity=".2"/>
+  <rect x="31" y="98" width="12" height="22" rx="6" fill="#2f6db5"/>
+  <rect x="88" y="70" width="46" height="50" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <rect x="84" y="66" width="54" height="6" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".2"/>
+  <rect x="134" y="86" width="44" height="34" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <path d="M134 86 q22 -16 44 0" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <rect x="98" y="80" width="9" height="11" fill="#2f6db5"/><rect x="115" y="80" width="9" height="11" fill="#2f6db5"/>
+  <rect x="104" y="100" width="12" height="20" rx="6" fill="#2f6db5"/>
+  <rect x="146" y="96" width="9" height="10" fill="#3f7f5a"/><rect x="160" y="100" width="10" height="20" fill="#3f7f5a"/>
+  <circle cx="140" cy="92" r="4" fill="#d6337a"/><circle cx="136" cy="98" r="3.5" fill="#c2185b"/><circle cx="139" cy="104" r="3" fill="#e45a9b"/>
+  <rect x="200" y="84" width="58" height="36" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <path d="M206 84 a23 22 0 0 1 46 0z" fill="#2f6db5"/>
+  <path d="M229 62 v-12 M224 55 h10" stroke="#f7f5ef" stroke-width="2.4"/>
+  <path d="M229 62 v-12 M224 55 h10" stroke="#3d3a4f" stroke-opacity=".35" stroke-width=".6"/>
+  <rect x="252" y="62" width="22" height="22" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <path d="M252 62 l11 -8 l11 8" fill="#f7f5ef" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <rect x="258" y="66" width="10" height="13" rx="5" fill="#3a3a46"/><circle cx="263" cy="74" r="3" fill="#b08a3c"/>
+  <rect x="223" y="100" width="12" height="20" rx="6" fill="#2f6db5"/>
+  <g><rect x="282" y="104" width="3" height="16" fill="#7a6a55"/><ellipse cx="284" cy="100" rx="11" ry="7" fill="#9aa86a"/></g>
+  <path d="M190 126 h40 M196 132 h34" stroke="#fbfaf6" stroke-width="1.6"/>
+</svg>
+              <h3>Island village (Cyclades)</h3>
+              <ul>
+                <li><b>Whitewashed cubes</b>, flat roofs; paint colours the doors and shutters</li>
+                <li><b>Barrel vaults</b> along rows, as in Santorini’s cave houses</li>
+                <li><b>Chapels</b> from lone houses: painted dome, cross, bell gable</li>
+                <li><b>Windmills</b> on lone towers: wooden cap, canvas sails</li>
+                <li><b>In the sea</b>: Chora on the hill, port and caiques below, lanes between</li>
+              </ul>
+            </article>
+            <article>
+              <svg viewBox="0 0 300 150" role="img" aria-label="A mountain village: a stone house with a grey slate roof and a wooden bay, a stone arched bridge and a tall stone tower">
+  <polygon points="0,150 0,96 60,70 130,92 200,60 300,88 300,150" fill="#93cc6e"/>
+  <polygon points="0,150 0,118 300,118 300,150" fill="#cfbd8f"/>
+  <rect x="22" y="62" width="74" height="56" fill="#b7aa96" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <g stroke="#8c806e" stroke-width=".8"><line x1="22" y1="76" x2="96" y2="76"/><line x1="22" y1="90" x2="96" y2="90"/><line x1="22" y1="104" x2="96" y2="104"/></g>
+  <polygon points="12,64 59,38 106,64" fill="#7a828b"/>
+  <rect x="10" y="62" width="98" height="5" fill="#5f666e"/>
+  <rect x="74" y="28" width="9" height="20" fill="#a69a87"/><polygon points="71,29 78.5,23 86,29" fill="#7a828b"/>
+  <rect x="34" y="70" width="46" height="24" fill="#efe8da" stroke="#5e3f2a" stroke-width="2"/>
+  <line x1="57" y1="70" x2="57" y2="94" stroke="#5e3f2a" stroke-width="2"/>
+  <rect x="40" y="76" width="11" height="10" fill="#4c6688"/><rect x="63" y="76" width="11" height="10" fill="#4c6688"/>
+  <path d="M38 94 l4 7 M76 94 l-4 7" stroke="#5e3f2a" stroke-width="2"/>
+  <rect x="30" y="102" width="9" height="10" fill="#4c6688"/><rect x="28" y="100" width="4" height="13" fill="#3f7f5a"/><rect x="37" y="100" width="4" height="13" fill="#3f7f5a"/>
+  <path d="M74 118 v-12 a6 6 0 0 1 12 0 v12" fill="#5e3f2a" stroke="#cdc2b1" stroke-width="2"/>
+  <path d="M112 118 Q160 64 208 118 L198 118 Q160 80 122 118 Z" fill="#a69a87" stroke="#3d3a4f" stroke-opacity=".3"/>
+  <path d="M108 118 Q160 58 212 118" fill="none" stroke="#8c806e" stroke-width="1.5"/>
+  <rect x="226" y="34" width="38" height="84" fill="#b7aa96" stroke="#3d3a4f" stroke-opacity=".25"/>
+  <rect x="226" y="26" width="5" height="9" fill="#b7aa96" stroke="#3d3a4f" stroke-opacity=".2"/><rect x="234" y="26" width="5" height="9" fill="#b7aa96" stroke="#3d3a4f" stroke-opacity=".2"/><rect x="242" y="26" width="5" height="9" fill="#b7aa96" stroke="#3d3a4f" stroke-opacity=".2"/><rect x="250" y="26" width="5" height="9" fill="#b7aa96" stroke="#3d3a4f" stroke-opacity=".2"/><rect x="258" y="26" width="5" height="9" fill="#b7aa96" stroke="#3d3a4f" stroke-opacity=".2"/>
+  <g stroke="#8c806e" stroke-width=".8"><line x1="226" y1="50" x2="264" y2="50"/><line x1="226" y1="66" x2="264" y2="66"/><line x1="226" y1="82" x2="264" y2="82"/><line x1="226" y1="98" x2="264" y2="98"/></g>
+  <rect x="240" y="44" width="8" height="10" fill="#4c6688"/><rect x="240" y="72" width="8" height="10" fill="#4c6688"/>
+  <g><rect x="282" y="96" width="4" height="22" fill="#8a644a"/><polygon points="274,100 294,100 284,72" fill="#4f9a63"/></g>
+  <g><rect x="140" y="98" width="3" height="10" fill="#8a644a"/><polygon points="132,100 151,100 141.5,80" fill="#4f9a63"/></g>
+</svg>
+              <h3>Mountain village (Zagori, Pelion, Mani)</h3>
+              <ul>
+                <li><b>Local stone</b> walls, small windows, wooden shutters</li>
+                <li><b>Grey slate roofs</b>, deep slab eaves, tall chimneys</li>
+                <li><b>Sachnisia</b>: overhanging wooden bays, as in Pelion</li>
+                <li><b>Stone arched bridges</b> wherever a storey spans a gap</li>
+                <li><b>Kalderimi</b> cobbled paths, fir forest, limestone peaks, rivers</li>
+              </ul>
+            </article>
+          </div>
+          <p class="small greek-land"><span class="chip" style="--c:#a8ad62">Olive grove</span> olives, cypresses, dry-stone walls, poppies · <span class="chip" style="--c:#c9b78a">Rocky hillside</span> boulders, thyme, goats, shrines · <span class="chip" style="--c:#e2d6c0">Square</span> plane tree, kafeneio tables</p>
+          <p class="small sources"><b>References:</b>
+            <a href="https://www.greeka.com/cyclades/mykonos/architecture/" target="_blank" rel="noopener">Mykonos architecture (Greeka)</a> ·
+            <a href="https://www.themediterraneantraveller.com/greece-white-buildings/" target="_blank" rel="noopener">Whitewashed villages</a> ·
+            <a href="https://www.aegeanislands.gr/pois/santorini-iposkafa-cave-houses-and-their-secrets-en/" target="_blank" rel="noopener">Santorini cave houses</a> ·
+            <a href="https://en.wikipedia.org/wiki/Mykonos_windmills" target="_blank" rel="noopener">Mykonos windmills</a> ·
+            <a href="https://landscapes.icomos.org/zagori-greece/" target="_blank" rel="noopener">Zagori cultural landscape (ICOMOS)</a> ·
+            <a href="https://www.visitgreece.gr/en/experiences/architecture/local-architecture/mount-pelion-architecture" target="_blank" rel="noopener">Pelion architecture</a> ·
+            <a href="https://visitpeloponnese.com/en/prdct/maniot-towers" target="_blank" rel="noopener">Maniot towers</a> ·
+            <a href="https://en.wikipedia.org/wiki/Plateia" target="_blank" rel="noopener">Plateia</a> ·
+            <a href="https://climate-adapt.eea.europa.eu/en/metadata/projects/employing-land-stewardship-to-transform-terraced-landscapes-into-green-infrastructure-to-better-adapt-to-climate-change" target="_blank" rel="noopener">Aegean dry-stone terraces</a>
+          </p>
+        </section>
+
+        <section id="panel-terrain" role="tabpanel" aria-labelledby="tab-terrain" class="panel" hidden>
+          <div class="split wide-left">
+            <div class="terrain"><svg viewBox="0 -8 400 182" role="img" aria-label="Cross-section of a hill and a lake"><rect x="262" y="124" width="120" height="30" fill="#79c3e2"/><polygon points="0,120 20,120 40,120 60,120 80,105 100,90 120,75 140,60 160,60 180,60 200,75 220,90 240,105 260,120 280,134 300,134 320,134 340,134 360,134 380,120 400,120 400,172 0,172" fill="#93cc6e"/><polygon points="0,140 400,140 400,172 0,172" fill="#c3a68b" opacity=".55"/><rect x="3" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="43" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="83" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="83" y="93" width="34" height="24" rx="3" class="t-box"/><rect x="123" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="123" y="93" width="34" height="24" rx="3" class="t-box"/><rect x="123" y="63" width="34" height="24" rx="3" class="t-box"/><rect x="163" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="163" y="93" width="34" height="24" rx="3" class="t-box"/><rect x="163" y="63" width="34" height="24" rx="3" class="t-box"/><rect x="203" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="203" y="93" width="34" height="24" rx="3" class="t-box"/><rect x="243" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="283" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="323" y="123" width="34" height="24" rx="3" class="t-box"/><rect x="363" y="123" width="34" height="24" rx="3" class="t-box"/><polyline points="0,120 20,120 40,120 60,120 80,105 100,90 120,75 140,60 160,60 180,60 200,75 220,90 240,105 260,120 280,134 300,134 320,134 340,134 360,134 380,120 400,120" fill="none" stroke="#6aa553" stroke-width="2.5"/><circle cx="40" cy="120" r="3.2" class="t-corner"/><circle cx="80" cy="105" r="3.2" class="t-corner"/><circle cx="120" cy="75" r="3.2" class="t-corner"/><circle cx="160" cy="60" r="3.2" class="t-corner"/><circle cx="200" cy="75" r="3.2" class="t-corner"/><circle cx="240" cy="105" r="3.2" class="t-corner"/><circle cx="280" cy="134" r="3.2" class="t-corner"/><circle cx="320" cy="134" r="3.2" class="t-corner"/><circle cx="360" cy="134" r="3.2" class="t-corner"/><path d="M262 124 H382" stroke="#4f9dc4" stroke-width="2"/><text x="160" y="40" class="t-label" text-anchor="middle">hill: 3 voxels of land</text><text x="320" y="108" class="t-label" text-anchor="middle">lake basin</text><text x="100" y="70" class="t-label" text-anchor="end">corners average</text><text x="100" y="82" class="t-label" text-anchor="end">their neighbours</text></svg></div>
+            <div>
+              <h3>Hills and lakes</h3>
+              <p>Land stacks in solid columns, so a taller column is a hill. Each <b>corner</b> (dots) gets one height, computed from every cell that shares it, so slopes are smooth and neighbours never crack apart.</p>
+              <p>Water pulls its corners down into a <b>basin</b>. The water surface reaches out over the banks, and the rising ground cuts a natural shoreline. A lake above lower ground gets a rim to hold it in. Houses on slopes get stone foundations.</p>
+            </div>
+          </div>
+          <div class="tips four">
+            <article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l13 7-6 2-2 6z"/></svg><div><h4>Clicking</h4><p>A ray finds the triangle under your cursor. Every triangle remembers what clicking it means: build on top, beside it toward a neighbour, or below.</p></div></article>
+            <article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg><div><h4>Undo</h4><p>Each edit keeps a snapshot. Undo swaps it back and rebuilds only the pieces that differ.</p></div></article>
+            <article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg><div><h4>Save &amp; share</h4><p>Every visit starts fresh. Share packs every piece (corner, level, type, colour, seed) into a link to keep or send; tiles are re-solved when it opens.</p></div></article>
+            <article class="tip"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><div><h4>Look &amp; sound</h4><p>Low-poly pieces generated in code, turning windmills, bobbing boats, chimney smoke, glints on the sea, birds, day and night, and synthesised sounds.</p></div></article>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button id="helpSurprise" class="secondary">Surprise me</button>
+          <button id="helpClose" class="primary">Start building</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
