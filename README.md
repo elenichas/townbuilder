@@ -28,7 +28,7 @@ The two Greek building styles are drawn from the vernacular architecture of the 
 - **Shape the land.** Paint meadow, woods, town squares or water, and click again to raise smooth hills. Lakes settle into basins with natural shorelines.
 - **A town that decides the details.** Doors open onto squares, roofs join up, forests grow in stands, reeds line the shore, and boats drift in open water.
 - **Day and night**, with glowing windows and lamps, drifting clouds, birds and gentle generated sound.
-- **Undo/redo, autosave, share links** (the whole town is packed into the URL), **"Surprise me"** random towns and a picture button.
+- **Undo/redo, share links** (the whole town is packed into the URL), **"Surprise me"** villages and a picture button. Every visit, mode switch and **Start building** begins with an empty scene; Undo brings the previous town back, and a share link keeps a town for later.
 - **Greek island and mountain villages.** Build in a whitewashed Cycladic style (flat roofs, vaults, chapels with painted domes, windmills, bougainvillea) or a stone mountain style (slate roofs, wooden bays, stone bridges, Mani towers), or mix them in one town.
 - **Mediterranean land.** Olive groves with cypresses and dry-stone walls, rocky hillsides with thyme, goats and roadside shrines, and village squares shaded by a plane tree.
 - **A built-in visual guide** (the **?** button) with an interactive WFC demo, illustrated rules and the Greek references.
@@ -153,7 +153,7 @@ There are no hand-made models. Each voxel's geometry is generated from its own i
 
 - **Clicking** casts a ray into the scene. Every triangle carries a small "action" value saying what clicking it means: build on top, beside it toward a specific neighbour, or below.
 - **Undo** keeps snapshots and rebuilds only the pieces that differ.
-- **Saving** is automatic (browser storage). **Share** compresses the whole town (corner, level, type, colour and seed per voxel) into the link; tiles are re-solved when it opens.
+- **Fresh starts**: the app opens empty (in the last mode used), and switching modes clears the scene. **Undo** remembers the mode, so it brings a cleared town back exactly. **Share** compresses the whole town (corner, level, type, colour and seed per voxel) into a link; tiles are re-solved when it opens.
 - **Presentation** (`src/scene.ts`, `src/view.ts`): Three.js, flat-shaded low-poly pieces, soft shadows, instanced clouds, birds, a day/night cycle, springy pop-in animations, and sound effects synthesised with the Web Audio API (`src/audio.ts`).
 
 ## Project structure

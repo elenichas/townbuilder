@@ -18,7 +18,9 @@ type Tool = 'build' | 'land' | 'restyle' | 'paint' | 'erase';
 type Hit = { kind: 'voxel'; key: number; act: number } | { kind: 'ground'; v: number };
 type Action = { op: 'add' | 'remove' | 'reroll' | 'paint' | 'zone'; v: number; k: number; kind?: number };
 
-const STORAGE_KEY = 'cloudhaven.town';
+/** Older versions autosaved the town; each visit now starts fresh, so that key is cleared. */
+const OLD_TOWN_KEY = 'cloudhaven.town';
+const MODE_KEY = 'cloudhaven.mode';
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const canvas = $<HTMLCanvasElement>('scene');
@@ -35,16 +37,23 @@ let tool: Tool = 'build';
 let color = 0;
 let style = STYLE_PASTEL;
 let zone = ZONE_MEADOW;
-const undoStack: Map<number, Voxel>[] = [];
-const redoStack: Map<number, Voxel>[] = [];
+/** History entries remember the mode too, so undoing a mode switch brings the old town back as it was. */
+interface HistoryEntry {
+  cells: Map<number, Voxel>;
+  mode: number;
+}
+const undoStack: HistoryEntry[] = [];
+const redoStack: HistoryEntry[] = [];
+const current = (): HistoryEntry => ({ cells: town.snapshot(), mode: town.mode });
 
 // ---------------------------------------------------------------- persistence
 
+/** Remember the last mode so a refresh opens an empty scene in the same mode. */
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, town.serialize());
+    localStorage.setItem(MODE_KEY, String(town.mode));
   } catch {
-    /* storage unavailable: the town just won't persist */
+    /* storage unavailable */
   }
 }
 
@@ -60,9 +69,11 @@ async function loadInitial(): Promise<boolean> {
       toast('That town link looks broken');
     }
   }
+  // Otherwise start with an empty scene, in the mode used last time.
   try {
-    const s = localStorage.getItem(STORAGE_KEY);
-    if (s && town.load(s)) return town.cells.size > 0;
+    localStorage.removeItem(OLD_TOWN_KEY);
+    const m = Number(localStorage.getItem(MODE_KEY));
+    if (modeInfo(m).id === m) town.mode = m;
   } catch {
     /* ignore */
   }
@@ -173,7 +184,7 @@ function perform(a: Action) {
   else if (a.op === 'reroll') ch = town.reroll(a.v, a.k);
   else ch = town.paint(a.v, a.k, color, style);
   if (!ch) return;
-  undoStack.push(snap);
+  undoStack.push({ cells: snap, mode: town.mode });
   if (undoStack.length > 300) undoStack.shift();
   redoStack.length = 0;
 
@@ -195,16 +206,20 @@ function perform(a: Action) {
   afterChange();
 }
 
-function stepHistory(from: Map<number, Voxel>[], to: Map<number, Voxel>[]) {
-  const snap = from.pop();
-  if (!snap) return;
-  to.push(town.snapshot());
-  view.apply(town.restore(snap));
+function stepHistory(from: HistoryEntry[], to: HistoryEntry[]) {
+  const entry = from.pop();
+  if (!entry) return;
+  to.push(current());
+  if (entry.mode !== town.mode) {
+    town.restore(entry.cells);
+    setMode(entry.mode, { rebuild: false });
+    view.rebuildAll();
+  } else view.apply(town.restore(entry.cells));
   afterChange();
 }
 
 function replaceTown(fn: () => void) {
-  undoStack.push(town.snapshot());
+  undoStack.push(current());
   redoStack.length = 0;
   fn();
   view.rebuildAll();
@@ -358,6 +373,13 @@ const modeButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-mode
 function setMode(m: number, opts: { announce?: boolean; rebuild?: boolean } = {}) {
   const info = modeInfo(m);
   const changed = town.mode !== m;
+  // Switching modes from the switcher starts a fresh scene (undo brings the old town back).
+  const cleared = !!opts.announce && changed && town.cells.size > 0;
+  if (cleared) {
+    undoStack.push(current());
+    redoStack.length = 0;
+    town.clear();
+  }
   town.mode = m;
   style = info.style;
   selectColor(info.color);
@@ -374,8 +396,10 @@ function setMode(m: number, opts: { announce?: boolean; rebuild?: boolean } = {}
   document.body.dataset.mode = String(m);
   if (opts.rebuild !== false && changed) view.rebuildAll();
   if (opts.announce && changed) {
-    toast(town.cells.size ? `${info.name}: new houses use this style. Try Surprise me for a whole village` : `${info.name}: click the clouds to start, or try Surprise me`);
-    save();
+    ctx.resetView();
+    const start = m === MODE_ISLAND ? 'click the sea' : 'click the clouds';
+    toast(cleared ? `${info.name}: fresh start (undo brings your town back)` : `${info.name}: ${start} to start, or try Surprise me`);
+    afterChange();
   }
   refreshHover();
 }
