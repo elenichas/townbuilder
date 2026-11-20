@@ -392,7 +392,6 @@ function setMode(m: number, opts: { announce?: boolean; rebuild?: boolean } = {}
     b.setAttribute('aria-checked', String(on));
     b.tabIndex = on ? 0 : -1;
   });
-  $('modeTagline').textContent = info.tagline;
   document.body.dataset.mode = String(m);
   if (opts.rebuild !== false && changed) view.rebuildAll();
   if (opts.announce && changed) {
@@ -404,6 +403,7 @@ function setMode(m: number, opts: { announce?: boolean; rebuild?: boolean } = {}
   refreshHover();
 }
 modeButtons.forEach((b, i) => {
+  b.title = modeInfo(Number(b.dataset.mode)).tagline;
   b.addEventListener('click', () => setMode(Number(b.dataset.mode), { announce: true }));
   b.addEventListener('keydown', (e) => {
     const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
