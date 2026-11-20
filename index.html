@@ -57,14 +57,68 @@
       <div class="card">
         <h2 id="helpTitle">Welcome to Cloudhaven</h2>
         <p class="lead">No goals, no rush. Just build a little town in the sky.</p>
-        <ul>
-          <li><b>Click the clouds</b> to raise an island.</li>
-          <li><b>Click an island or a roof</b> to build up. <b>Click a wall</b> to build sideways. Overhangs turn into arches and bridges.</li>
-          <li><b>Land</b> paints meadow, woods, town squares or water. Click the same land again to raise a hill.</li>
-          <li><b>Restyle</b> (or <kbd>Alt</kbd>/<kbd>⌥</kbd>-click) swaps a piece for a different version. The pieces around it change to match.</li>
-          <li><b>Paint</b> (or <kbd>Shift</kbd>-click) recolours walls. <b>Erase</b> (or right-click) removes a piece.</li>
-          <li>Drag to orbit, right-drag to pan, scroll or pinch to zoom.</li>
-        </ul>
+        <div class="tabs" role="tablist" aria-label="Help">
+          <button role="tab" id="tabPlay" aria-controls="panelPlay" aria-selected="true">How to play</button>
+          <button role="tab" id="tabWorks" aria-controls="panelWorks" aria-selected="false" tabindex="-1">How it works</button>
+        </div>
+
+        <section id="panelPlay" role="tabpanel" aria-labelledby="tabPlay">
+          <ul>
+            <li><b>Click the clouds</b> to raise an island.</li>
+            <li><b>Click an island or a roof</b> to build up. <b>Click a wall</b> to build sideways. Overhangs turn into arches and bridges.</li>
+            <li><b>Land</b> paints meadow, woods, town squares or water. Click the same land again to raise a hill.</li>
+            <li><b>Restyle</b> (or <kbd>Alt</kbd>/<kbd>⌥</kbd>-click) swaps a piece for a different version. The pieces around it change to match.</li>
+            <li><b>Paint</b> (or <kbd>Shift</kbd>-click) recolours walls. <b>Erase</b> (or right-click) removes a piece.</li>
+            <li>Drag to orbit, right-drag to pan, scroll or pinch to zoom.</li>
+            <li>Keys: <kbd>1</kbd>–<kbd>5</kbd> tools, <kbd>N</kbd> day/night, <kbd>Ctrl/Cmd</kbd>+<kbd>Z</kbd> undo (add <kbd>Shift</kbd> to redo), <kbd>?</kbd> this help.</li>
+          </ul>
+        </section>
+
+        <section id="panelWorks" role="tabpanel" aria-labelledby="tabWorks" class="works" hidden>
+          <p>Nothing in Cloudhaven is hand-modelled or hand-placed. You decide <i>where</i> things go; a few small algorithms decide <i>what</i> they become.</p>
+
+          <h3>1 · The irregular grid</h3>
+          <svg class="steps" viewBox="0 0 400 92" role="img" aria-label="Four steps: triangles, merged into quads, subdivided, relaxed">
+            <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+              <path d="M10 70 L50 70 L30 35 Z M50 70 L70 35 L30 35 M50 70 L90 70 L70 35" />
+              <path d="M110 70 L150 70 L170 35 L130 35 Z M150 70 L190 70 L170 35" />
+              <path d="M210 70 L250 70 L270 35 L230 35 Z M230 70 L250 52.5 M260 52.5 L240 52.5 L220 52.5 M250 70 L290 70 L270 35 Z M270 70 L270 52.5 L260 52.5 M270 52.5 L280 52.5" />
+              <path d="M312 72 L348 68 L366 36 L332 32 Z M330 70 L346 51 M357 51 L340 50 L322 52 M348 68 L388 72 L366 36 M368 70 L370 53 L357 51 M370 53 L377 54" />
+            </g>
+            <g font-size="10" fill="currentColor" text-anchor="middle">
+              <text x="50" y="88">triangles</text><text x="150" y="88">merge</text><text x="250" y="88">subdivide</text><text x="350" y="88">relax</text>
+            </g>
+          </svg>
+          <p>The world starts as a hexagon of triangles. Random neighbouring pairs are merged into quads, then every shape is cut into smaller quads (a triangle into 3, a quad into 4), so the whole map is quads. Finally the points are <b>relaxed</b>: each quad is nudged, over many small steps, toward the closest perfect square. The grid looks organic, but every cell still has exactly four corners, which keeps the building rules simple.</p>
+          <p>You build on the grid's <b>corners</b>. Each corner owns the quarter of every quad that touches it, and together those quarters form its cell (the outline you see when hovering). A cell stacked in levels is a column of <b>voxels</b>: land at the bottom, houses above.</p>
+
+          <h3>2 · Wave Function Collapse</h3>
+          <p>WFC is a way of filling a space with pieces that fit their neighbours, a bit like solving a sudoku. Every filled voxel starts as a cloud of possibilities and is narrowed down to one tile.</p>
+          <ul>
+            <li><b>Tiles.</b> A storey picks a window style × a facade feature (plain, shutters, flower boxes, balcony, door, shop) × a roof (hip, steep spire, flat terrace). Land picks from its type: meadow (grass, flowers, tree, bush, rocks), woods (pines, oaks, grove, clearing), squares (paving, lamp, bench, planter, fountain, market) or water (open, lilies, reeds, boat, rock).</li>
+            <li><b>Context.</b> Shape decides what's allowed: roofs only on top floors, doors only on the ground floor facing walkable land, spires only on slim towers, reeds only on a shore, boats only in open water.</li>
+            <li><b>Rules between neighbours.</b> A floor of a building shares one window style; touching roofs share a type so their ridges meet; no two doors side by side; doors never open onto a tree, fountain or stall; woods grow in pine or oak stands joined by mixed groves; lamps and fountains are spaced out.</li>
+          </ul>
+          <p><b>The loop:</b> remove every option that breaks a rule with any neighbour (<i>propagation</i>), pick the voxel with the fewest options left and choose one of them, propagate again, repeat until everything is decided.</p>
+          <p><b>Only near your click.</b> An edit re-solves just the area around it; the rest of the town stays fixed and acts as a boundary. If that area can't be solved, it grows until it can.</p>
+          <p><b>Stable randomness.</b> Each voxel has its own seed, and every option gets a fixed random score from it. The best-scoring option that's still allowed wins, so removing other options never changes the winner. That's why far-away buildings don't reshuffle when you build, and why the same town always looks the same.</p>
+          <p><b>Restyle</b> gives a piece a new seed, solves it first while ruling out its current tile, and lets the rest of that floor re-solve around it. Everything that changed pops, so you can see what's connected.</p>
+
+          <h3>3 · Terrain</h3>
+          <p>Land stacks in solid columns, so a taller column is a hill. Each corner of a cell gets one height, computed from all the cells that share it, so neighbours always meet without cracks. Land averages its neighbours into smooth slopes. Water pulls its corners down into a basin, and the water surface is pushed out over the banks so the slope itself cuts a natural shoreline. Where a lake sits above lower ground, its corners become a rim that holds the water in.</p>
+
+          <h3>4 · Building the pieces</h3>
+          <p>Each voxel's geometry is generated from its cell and its neighbours. Walls appear wherever the neighbouring quarter is empty. Roofs are a height field that is high in the middle of a building and low at the eaves, so joined houses share one roof. An overhang gets a vaulted underside that dips onto walls beside it, which is where arches and bridges come from. Houses on slopes get stone foundations down to the ground. Windows, doors, trees and lamps are placed with each voxel's seed, so they never jump around.</p>
+
+          <h3>5 · Everything else</h3>
+          <ul>
+            <li><b>Clicking</b> casts a ray into the scene. Every triangle remembers what clicking it means: build on top, build beside it toward a specific neighbour, or build underneath.</li>
+            <li><b>Undo</b> keeps snapshots of the town; only the voxels that differ are rebuilt.</li>
+            <li><b>Saving</b> is automatic in your browser. <b>Share</b> compresses the town (corner, level, type, colour and seed per voxel) into the link itself; tiles are re-solved when it opens.</li>
+            <li><b>Look and feel:</b> flat-shaded low-poly pieces, soft shadows, a sea of instanced clouds, birds, a day/night cycle where windows and lamps light up, springy pop-in animations, and sound effects synthesised on the fly (no audio files).</li>
+          </ul>
+        </section>
+
         <div class="actions">
           <button id="helpSurprise" class="secondary">Surprise me</button>
           <button id="helpClose" class="primary">Start building</button>

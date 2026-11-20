@@ -401,11 +401,34 @@ $('sound').addEventListener('click', () => {
 });
 syncSound();
 
-function toggleHelp(show: boolean) {
+function toggleHelp(show: boolean, tab?: 'play' | 'works') {
   $('help').classList.toggle('hidden', !show);
+  if (tab) selectHelpTab(tab);
   if (show) $('helpClose').focus();
 }
-$('helpBtn').addEventListener('click', () => toggleHelp(true));
+
+function selectHelpTab(tab: 'play' | 'works') {
+  const works = tab === 'works';
+  for (const [btn, panel, on] of [
+    ['tabPlay', 'panelPlay', !works],
+    ['tabWorks', 'panelWorks', works],
+  ] as const) {
+    $(btn).setAttribute('aria-selected', String(on));
+    $(btn).tabIndex = on ? 0 : -1;
+    $(panel).hidden = !on;
+  }
+  $(works ? 'panelWorks' : 'panelPlay').scrollTop = 0;
+}
+$('tabPlay').addEventListener('click', () => selectHelpTab('play'));
+$('tabWorks').addEventListener('click', () => selectHelpTab('works'));
+document.querySelector('.tabs')!.addEventListener('keydown', (e) => {
+  const k = (e as KeyboardEvent).key;
+  if (k !== 'ArrowLeft' && k !== 'ArrowRight') return;
+  const toWorks = $('tabPlay').getAttribute('aria-selected') === 'true';
+  selectHelpTab(toWorks ? 'works' : 'play');
+  $(toWorks ? 'tabWorks' : 'tabPlay').focus();
+});
+$('helpBtn').addEventListener('click', () => toggleHelp(true, 'play'));
 $('helpClose').addEventListener('click', () => toggleHelp(false));
 $('helpSurprise').addEventListener('click', () => {
   toggleHelp(false);
