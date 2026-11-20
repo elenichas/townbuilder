@@ -1,47 +1,147 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<p align="center">
+  <img src="assets/icon.svg" width="72" height="72" alt="">
+</p>
 
-# Cloudhaven
+<h1 align="center">Cloudhaven</h1>
 
-A cozy town builder with no goals, set on floating sky islands. Click to raise islands and stack houses. The town works out the details itself: roofs join up, overhangs become arches and bridges, doors open onto plazas, and windows light up at night.
+<p align="center"><b>A cozy town builder on floating sky islands.</b><br>
+No goals, no score, no rush: click to raise islands, stack little houses, shape hills, woods and lakes,<br>and watch the town work out the details for itself.</p>
 
-## Run it
+<p align="center">
+  <img src="docs/hero.jpg" alt="A Cloudhaven town: pastel houses, towers with spires, a hill, woods and a lake on floating islands above the clouds">
+</p>
+
+## Inspiration
+
+Cloudhaven is a love letter to **[Townscaper](https://townscapergame.com/)** by **[Oskar Stålberg](https://oskarstalberg.com/)** (published by Raw Fury), the wonderful toy in which you click on the sea and a town grows itself. Townscaper is the clear reference for both the feel and the techniques: an irregular, relaxed quad grid, building on grid corners, and constraint solving that turns rough clicks into charming architecture.
+
+This is an independent, non-commercial learning project, built from scratch. It isn't affiliated with Oskar Stålberg or Raw Fury and uses none of their code, models or art. Every piece in Cloudhaven is generated in code, and it has its own setting: villages in the sky with hills, forests, town squares and lakes.
+
+The solver is based on **[Wave Function Collapse](https://github.com/mxgmn/WaveFunctionCollapse)** by Maxim Gumin.
+
+## Features
+
+- **Build by clicking.** Click the clouds to raise an island, click land or a roof to build up, click a wall to build sideways. Overhangs turn into arches and bridges.
+- **Restyle anything.** Ask for a different version of any piece; its neighbours adapt so everything still fits.
+- **Shape the land.** Paint meadow, woods, town squares or water, and click again to raise smooth hills. Lakes settle into basins with natural shorelines.
+- **A town that decides the details.** Doors open onto squares, roofs join up, forests grow in stands, reeds line the shore, and boats drift in open water.
+- **Day and night**, with glowing windows and lamps, drifting clouds, birds and gentle generated sound.
+- **Undo/redo, autosave, share links** (the whole town is packed into the URL), **"Surprise me"** random towns and a picture button.
+- **A built-in visual guide** (the **?** button) with an interactive WFC demo and illustrated rules.
+
+<table>
+  <tr>
+    <td><img src="docs/terrain.jpg" alt="A grassy hill with woods, a lake with lilies and a town square with a bench and lamp"></td>
+    <td><img src="docs/night.jpg" alt="The same town at night with lit windows"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Hills, woods, a lake and a town square</sub></td>
+    <td align="center"><sub>Night falls and the windows light up</sub></td>
+  </tr>
+</table>
+
+## Getting started
+
+Requires [Node.js](https://nodejs.org/) 18 or newer.
 
 ```sh
 npm install
-npm run dev        # http://localhost:5173
-npm test           # grid, WFC and geometry tests
-npm run build      # static build in dist/
+npm run dev        # play at http://localhost:5173
 ```
 
-## Play
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the dev server with hot reload |
+| `npm test` | Run the grid, WFC, terrain and geometry tests |
+| `npm run build` | Typecheck and build a static site into `dist/` |
+| `npm run preview` | Serve the production build locally |
+
+The built site is fully static, so `dist/` can be hosted anywhere (GitHub Pages, Netlify, any web server).
+
+## How to play
 
 | Do this | To |
 | --- | --- |
 | Click the clouds | raise an island |
-| Click an island or roof | build a storey on top |
-| **Land** tool + Meadow / Woods / Square / Water | paint the ground; click the same land again to raise a hill |
+| Click land or a roof | build a storey on top |
 | Click a wall | build sideways (overhangs become arches and bridges) |
-| **Restyle** tool or <kbd>Alt</kbd>/<kbd>⌥</kbd>-click | get a different version of that piece; the pieces around it adapt |
+| **Land** tool + Meadow / Woods / Square / Water | paint the ground; click the same land again to raise a hill |
+| **Restyle** tool or <kbd>Alt</kbd>/<kbd>⌥</kbd>-click | get a different version of a piece; its neighbours adapt |
 | **Paint** tool or <kbd>Shift</kbd>-click | recolour walls |
 | **Erase** tool or right-click | remove a piece |
 | Drag / right-drag / scroll | orbit / pan / zoom |
-| <kbd>1</kbd>–<kbd>5</kbd>, <kbd>N</kbd>, <kbd>Ctrl/Cmd</kbd>+<kbd>Z</kbd> | tools, day/night, undo (<kbd>Shift</kbd> to redo) |
+| <kbd>1</kbd>–<kbd>5</kbd>, <kbd>N</kbd>, <kbd>Ctrl/Cmd</kbd>+<kbd>Z</kbd>, <kbd>?</kbd> | tools, day/night, undo (add <kbd>Shift</kbd> to redo), guide |
 
-Your town saves automatically in the browser. **Share** copies a link that contains the whole town, and **Surprise me** grows a random one.
+**Start building** in the guide clears the town for a fresh start (Undo brings it back).
 
 ## How it works
 
-1. **Irregular grid** (`src/grid.ts`). Start from a hexagon of triangles, randomly merge pairs into quads, split every shape into quads, then relax the points so each quad is as square as possible. The player builds on grid *vertices*. Each vertex owns a "dual cell" made of the quarter of every quad around it.
-2. **Voxels**. A filled `(vertex, level)` is either land (meadow, woods, square or water) or a storey of a house. Land stacks in solid columns from level 0, so a tall column is a hill. The ground height at each corner of a cell is shared by every cell touching that corner: land averages its neighbours into smooth slopes, and water pulls the corners down into a basin (or up into a rim when the lake sits above lower ground). Neighbouring cells always meet without cracks, and lakes get natural shorelines.
-3. **Wave Function Collapse** (`src/wfc.ts`, `src/tiles.ts`). Every filled voxel is a variable. Its context (what is filled around it, and the land type you painted) decides which tiles it may use: window style × facade feature × roof type for storeys; grass, flowers, tree, bush or rocks on meadow; pines, oaks, grove or clearing in woods; paving, lamp, fountain, bench, market stall or planter on squares; open water, lilies, reeds, a boat or a rock on water. Adjacency rules connect neighbours:
-   - storeys on the same floor share a window style, so a building reads as one,
-   - touching roofs share a type, so their ridges line up,
-   - no two doors side by side,
-   - lone meadow trees keep their distance; woods grow in pine or oak stands with mixed groves between them, and clearings never touch,
-   - squares don't put two fountains, two lamps, or a fountain and a market stall side by side,
-   - reeds grow only on a lake's shore, boats only in open water,
-   - doors and shopfronts never open onto a tree, fountain, market stall or planter.
+<p align="center">
+  <img src="docs/guide-wfc.jpg" width="760" alt="The in-game guide's interactive Wave Function Collapse demo">
+  <br><sub>The in-game guide includes an interactive Wave Function Collapse demo</sub>
+</p>
 
-   The solver propagates the rules (arc consistency), collapses the variable with the fewest options, and repeats. After an edit only the area nearby is re-solved, and the rest stays fixed. Choices use a seeded "exponential race", so the same town always comes out the same and small edits don't reshuffle anything far away. **Restyle** gives the clicked piece a new seed, solves it first while ruling out its current tile, and lets the rest of its floor adapt to match.
-4. **Procedural modules** (`src/builder.ts`). There are no hand-made models. Each voxel is built on its own irregular cell. Walls go wherever a neighbouring quarter is empty. Roofs are a height field that rises away from the eaves. An overhang gets a vaulted underside that dips onto nearby walls, which makes arches. On top of that come windows, shutters, flower boxes, doors, shopfronts, balconies, chimneys, flags, trees and lamps.
-5. **Presentation** (`src/scene.ts`, `src/view.ts`). Low-poly flat shading with soft shadows, a sea of clouds, birds, pop-in animations, a day/night cycle with glowing windows, and sound effects generated in code (`src/audio.ts`).
+### 1. An irregular grid (`src/grid.ts`)
+
+The world starts as a hexagon of triangles. Random neighbouring pairs merge into quads, every shape is subdivided into smaller quads (a triangle into 3, a quad into 4), and then the points are **relaxed**: each quad is nudged, over many small steps, toward the closest perfect square. The result looks organic, but every cell still has exactly four corners.
+
+You build on the grid's **corners**. Each corner owns the quarter of every quad that touches it, and together those quarters form its cell. A stack of cells is a column of **voxels**: land at the bottom, houses above.
+
+### 2. Wave Function Collapse (`src/wfc.ts`, `src/tiles.ts`)
+
+Every filled voxel is a variable that has to become one tile:
+
+- **Storeys** combine a window style × a facade feature (plain, shutters, flower boxes, balcony, door, shop) × a roof (hip, steep spire, flat terrace).
+- **Land** picks from its painted type: meadow (grass, flowers, tree, bush, rocks), woods (pines, oaks, grove, clearing), squares (paving, lamp, bench, planter, fountain, market stall) or water (open, lilies, reeds, boat, rock).
+
+**Context** narrows the options: roofs only on top floors, doors only on the ground floor facing walkable land, spires only on slim towers, reeds only on a shore, boats only in open water. **Neighbour rules** connect the pieces:
+
+- storeys on the same floor share a window style, so a row of houses reads as one building;
+- touching roofs share a type, so their ridges meet;
+- no two doors side by side, and doors and shopfronts never open onto a tree, fountain, stall or planter;
+- woods grow in pine or oak stands joined by mixed groves, and clearings never touch;
+- squares keep fountains and lamps apart.
+
+The solver propagates the rules (arc consistency), collapses the variable with the fewest options left, and repeats. Two extra choices make it feel good to play with:
+
+- **Local re-solving.** An edit only re-solves the area around it; the rest of the town stays fixed and acts as the boundary. If that area can't be solved, it grows until it can.
+- **Stable randomness.** Each voxel has its own seed, which gives every option a fixed random score (an "exponential race"). The best-scoring option that's still allowed wins, so ruling out *other* options never changes the result. Building next door doesn't reshuffle your town, and the same town always looks the same. **Restyle** simply gives a piece a new seed and lets its neighbours re-solve around it.
+
+### 3. Terrain (`src/builder.ts`)
+
+Land stacks in solid columns, so a taller column is a hill. Each corner of a cell gets one height, computed from every cell that shares it, so neighbouring terrain always joins without cracks. Land averages its neighbours into smooth slopes. Water pulls its corners down into a basin, and the water surface reaches out over the banks so the rising ground cuts a natural shoreline. A lake above lower ground gets a rim to hold it in, and houses on slopes get stone foundations.
+
+### 4. Procedural pieces (`src/builder.ts`, `src/geo.ts`)
+
+There are no hand-made models. Each voxel's geometry is generated from its own irregular cell and its neighbours. Walls appear wherever a neighbouring quarter is empty. Roofs are a height field that is high in the middle of a building and low at the eaves, so joined houses share one roof. Overhangs get a vaulted underside that dips onto nearby walls, which is where arches and bridges come from. Windows, doors, balconies, chimneys, flags, trees, fountains and boats are placed with each voxel's seed, so they never jump around.
+
+### 5. Everything else
+
+- **Clicking** casts a ray into the scene. Every triangle carries a small "action" value saying what clicking it means: build on top, beside it toward a specific neighbour, or below.
+- **Undo** keeps snapshots and rebuilds only the pieces that differ.
+- **Saving** is automatic (browser storage). **Share** compresses the whole town (corner, level, type, colour and seed per voxel) into the link; tiles are re-solved when it opens.
+- **Presentation** (`src/scene.ts`, `src/view.ts`): Three.js, flat-shaded low-poly pieces, soft shadows, instanced clouds, birds, a day/night cycle, springy pop-in animations, and sound effects synthesised with the Web Audio API (`src/audio.ts`).
+
+## Project structure
+
+```
+src/
+  grid.ts      irregular quad grid: triangles → merge → subdivide → relax, plus dual cells
+  wfc.ts       generic graph Wave Function Collapse solver
+  tiles.ts     tile catalogue, land types and neighbour rules
+  town.ts      town state, editing, contexts, local re-solving, save/load
+  builder.ts   procedural geometry for storeys, roofs, arches, terrain and props
+  geo.ts       tiny mesh builder (flat-shaded, vertex-coloured, picking actions)
+  generate.ts  "Surprise me" town generator
+  scene.ts     renderer, camera, sky, clouds, birds, day/night
+  view.ts      voxel meshes, animations, hover ghost, grid lines
+  help.ts      the in-game guide: tabs, grid diagrams, interactive WFC demo
+  main.ts      input, tools, UI, history and persistence
+tests/         grid validity, WFC constraint satisfaction, terrain seams, geometry
+```
+
+Handy for screenshots: append `?cam=x,y,z,tx,ty,tz` to set the camera position and target, and `?night` to start at night.
+
+## Built with
+
+[Three.js](https://threejs.org/), [TypeScript](https://www.typescriptlang.org/), [Vite](https://vitejs.dev/) and [Vitest](https://vitest.dev/). Fonts: Fredoka and Nunito from Google Fonts.
