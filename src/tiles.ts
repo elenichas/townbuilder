@@ -14,26 +14,43 @@ export const ZONE_MEADOW = 1;
 export const ZONE_WOODS = 2;
 export const ZONE_PLAZA = 3;
 export const ZONE_WATER = 4;
-export const isZone = (kind: number) => kind >= ZONE_MEADOW && kind <= ZONE_WATER;
+export const ZONE_OLIVE = 5;
+export const ZONE_ROCKY = 6;
+export const isZone = (kind: number) => kind >= ZONE_MEADOW && kind <= ZONE_ROCKY;
 
 export const ZONES = [
   { id: ZONE_MEADOW, name: 'Meadow', color: '#93cc6e' },
   { id: ZONE_WOODS, name: 'Woods', color: '#4f9a63' },
   { id: ZONE_PLAZA, name: 'Square', color: '#e2d6c0' },
   { id: ZONE_WATER, name: 'Water', color: '#79c3e2' },
+  { id: ZONE_OLIVE, name: 'Olive grove', color: '#a8ad62' },
+  { id: ZONE_ROCKY, name: 'Rocky hillside', color: '#c9b78a' },
+] as const;
+
+// ---------------------------------------------------------------- building styles
+
+/** Architectural style of a storey. Island = Cycladic, Mountain = Zagori / Pelion / Mani stone. */
+export const STYLE_PASTEL = 0;
+export const STYLE_ISLAND = 1;
+export const STYLE_MOUNTAIN = 2;
+export const STYLES = [
+  { id: STYLE_PASTEL, name: 'Pastel town' },
+  { id: STYLE_ISLAND, name: 'Greek island (Cycladic)' },
+  { id: STYLE_MOUNTAIN, name: 'Greek mountain (stone)' },
 ] as const;
 
 // ---------------------------------------------------------------- storey tiles
 
 export const WIN = ['square', 'arch', 'round'] as const;
-export const FEAT = ['plain', 'shutters', 'flowers', 'balcony', 'door', 'shop'] as const;
-export const ROOF = ['none', 'hip', 'steep', 'flat'] as const;
+export const FEAT = ['plain', 'shutters', 'flowers', 'balcony', 'door', 'shop', 'chapel'] as const;
+export const ROOF = ['none', 'hip', 'steep', 'flat', 'dome', 'slate', 'mill'] as const;
 
 export const W_SQUARE = 0, W_ARCH = 1, W_ROUND = 2;
-export const F_PLAIN = 0, F_SHUTTERS = 1, F_FLOWERS = 2, F_BALCONY = 3, F_DOOR = 4, F_SHOP = 5;
-export const R_NONE = 0, R_HIP = 1, R_STEEP = 2, R_FLAT = 3;
+export const F_PLAIN = 0, F_SHUTTERS = 1, F_FLOWERS = 2, F_BALCONY = 3, F_DOOR = 4, F_SHOP = 5, F_CHAPEL = 6;
+/** dome = rounded Cycladic roof (a dome on a lone house, a barrel vault along a row); slate = mountain roof; mill = windmill cap. */
+export const R_NONE = 0, R_HIP = 1, R_STEEP = 2, R_FLAT = 3, R_DOME = 4, R_SLATE = 5, R_MILL = 6;
 
-export const N_STOREY = WIN.length * FEAT.length * ROOF.length; // 72
+export const N_STOREY = WIN.length * FEAT.length * ROOF.length; // 147
 export const storeyTile = (w: number, f: number, r: number) => (w * FEAT.length + f) * ROOF.length + r;
 export const isStorey = (t: number) => t >= 0 && t < N_STOREY;
 
@@ -70,11 +87,23 @@ export const GROUND_TILES: GroundTile[] = [
   { zone: ZONE_PLAZA, name: 'bench', weight: 1 },
   { zone: ZONE_PLAZA, name: 'market', weight: 0.7 },
   { zone: ZONE_PLAZA, name: 'planter', weight: 0.9 },
+  { zone: ZONE_PLAZA, name: 'plane', weight: 0.7 },
+  { zone: ZONE_PLAZA, name: 'cafe', weight: 0.9 },
   { zone: ZONE_WATER, name: 'open', weight: 2.5 },
   { zone: ZONE_WATER, name: 'lilies', weight: 1 },
   { zone: ZONE_WATER, name: 'reeds', weight: 1.6 },
   { zone: ZONE_WATER, name: 'boat', weight: 0.5 },
   { zone: ZONE_WATER, name: 'rock', weight: 0.4 },
+  { zone: ZONE_OLIVE, name: 'olives', weight: 2.4 },
+  { zone: ZONE_OLIVE, name: 'cypresses', weight: 1 },
+  { zone: ZONE_OLIVE, name: 'olive_cypress', weight: 1.2 },
+  { zone: ZONE_OLIVE, name: 'drywall', weight: 1 },
+  { zone: ZONE_OLIVE, name: 'poppies', weight: 0.8 },
+  { zone: ZONE_ROCKY, name: 'boulders', weight: 1.6 },
+  { zone: ZONE_ROCKY, name: 'scrub', weight: 2 },
+  { zone: ZONE_ROCKY, name: 'goat', weight: 0.6 },
+  { zone: ZONE_ROCKY, name: 'shrine', weight: 0.35 },
+  { zone: ZONE_ROCKY, name: 'stones', weight: 1.2 },
 ];
 
 export const GROUND0 = N_STOREY;
@@ -99,6 +128,7 @@ export const zoneTiles = (zone: number) => GROUND_TILES.flatMap((t, i) => (t.zon
 export const REL_SAME = 0; // same level, sharing a quad, same kind (both buildings or both land)
 export const REL_IS = 1; // this var is open land, neighbour is a building storey standing next to it
 export const REL_SI = 2; // reverse of REL_IS
+export const REL_MIX = 3; // same level, sharing a quad, both buildings but of different styles
 export const revRel = (r: number) => (r === REL_IS ? REL_SI : r === REL_SI ? REL_IS : r);
 
 /** Pairs of land tiles that may not sit next to each other. */
@@ -111,6 +141,11 @@ const FORBIDDEN_PAIRS: [string, string][] = [
   ['lamp', 'lamp'],
   ['boat', 'boat'],
   ['rock', 'rock'],
+  ['plane', 'plane'], // one big plane tree shades a square
+  ['plane', 'fountain'],
+  ['goat', 'goat'],
+  ['shrine', 'shrine'],
+  ['drywall', 'drywall'],
 ];
 const forbidden = new Set<number>();
 for (const [a, b] of FORBIDDEN_PAIRS) {
@@ -119,7 +154,7 @@ for (const [a, b] of FORBIDDEN_PAIRS) {
 }
 
 /** Land tiles that would block a door or shopfront. */
-const BLOCKS_DOOR = new Set(['tree', 'fountain', 'market', 'planter'].map((n) => T[n]));
+const BLOCKS_DOOR = new Set(['tree', 'fountain', 'market', 'planter', 'plane', 'cypresses', 'olive_cypress', 'olives', 'boulders', 'goat', 'shrine'].map((n) => T[n]));
 
 /** `a` is this variable's tile, `b` the neighbour's. */
 export function compat(rel: number, a: number, b: number): boolean {
@@ -128,6 +163,11 @@ export function compat(rel: number, a: number, b: number): boolean {
     if (!isGroundTile(a) || !isStorey(b)) return true;
     const f = decodeStorey(b).feat;
     return !((f === F_DOOR || f === F_SHOP) && BLOCKS_DOOR.has(a));
+  }
+  if (rel === REL_MIX) {
+    // Different styles may stand side by side; only the doorway rule still applies.
+    if (isStorey(a) && isStorey(b)) return !(decodeStorey(a).feat === F_DOOR && decodeStorey(b).feat === F_DOOR);
+    return true;
   }
   if (isStorey(a) && isStorey(b)) {
     const A = decodeStorey(a);
@@ -145,5 +185,5 @@ export function compat(rel: number, a: number, b: number): boolean {
 }
 
 export const WIN_WEIGHT = [1.4, 1.0, 0.7];
-export const FEAT_WEIGHT = [2.2, 1.6, 1.3, 1.4, 3.0, 1.2];
-export const ROOF_WEIGHT = [1, 3, 2.2, 1];
+export const FEAT_WEIGHT = [2.2, 1.6, 1.3, 1.4, 3.0, 1.2, 4];
+export const ROOF_WEIGHT = [1, 3, 2.2, 1, 2.2, 3, 4];

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 
-/** Paint colours the player can pick for walls. */
-export const WALL_HEX = ['#f6ead6', '#f4b3a3', '#f7d68b', '#a8d8c6', '#9cc4ea', '#c9b2ea', '#f2a1c2', '#ebe9f0'];
+/** Paint colours. On pastel houses they colour the walls; on Greek island and mountain houses
+ *  (whitewash and stone) they colour the doors, shutters, railings and domes. The last three are
+ *  the classic Aegean blue, shutter green and oxblood. */
+export const WALL_HEX = ['#f6ead6', '#f4b3a3', '#f7d68b', '#a8d8c6', '#9cc4ea', '#c9b2ea', '#f2a1c2', '#ebe9f0', '#2f6db5', '#3f7f5a', '#9b3b33'];
 export const WALL = WALL_HEX.map((h) => new THREE.Color(h));
 
 const c = (h: string) => new THREE.Color(h);

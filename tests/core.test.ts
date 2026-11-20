@@ -3,7 +3,30 @@ import { buildVoxel, pointHeight } from '../src/builder';
 import { generateTown } from '../src/generate';
 import { cellAt, generateGrid, pointInPolygon } from '../src/grid';
 import { mulberry32 } from '../src/rng';
-import { KIND_BUILDING, ZONE_MEADOW, ZONE_PLAZA, ZONE_WATER, ZONE_WOODS, compat, isGroundTile, isStorey } from '../src/tiles';
+import {
+  F_CHAPEL,
+  KIND_BUILDING,
+  R_DOME,
+  R_FLAT,
+  R_HIP,
+  R_MILL,
+  R_NONE,
+  R_SLATE,
+  R_STEEP,
+  STYLE_ISLAND,
+  STYLE_MOUNTAIN,
+  STYLE_PASTEL,
+  ZONE_MEADOW,
+  ZONE_OLIVE,
+  ZONE_PLAZA,
+  ZONE_ROCKY,
+  ZONE_WATER,
+  ZONE_WOODS,
+  compat,
+  decodeStorey,
+  isGroundTile,
+  isStorey,
+} from '../src/tiles';
 import { Town, key, keyK, keyV } from '../src/town';
 
 const grid = generateGrid(9, 7);
@@ -138,9 +161,9 @@ describe('wfc town', () => {
 });
 
 describe('builder', () => {
-  it('produces finite geometry for every voxel of a generated town', () => {
+  it.each(['pastel', 'island', 'mountain'] as const)('produces finite geometry for every voxel of a %s village', (theme) => {
     const town = new Town(grid);
-    generateTown(town, mulberry32(5));
+    generateTown(town, mulberry32(5), theme);
     let tris = 0;
     for (const k of town.cells.keys()) {
       const res = buildVoxel(town, k);
@@ -210,5 +233,71 @@ describe('terrain', () => {
     for (const z of [ZONE_MEADOW, ZONE_WOODS, ZONE_WATER, ZONE_PLAZA, KIND_BUILDING]) expect(kinds.has(z)).toBe(true);
     expect([...town.cells.keys()].some((k) => keyK(k) > 0 && town.isGround(keyV(k), keyK(k)))).toBe(true);
     assertConsistent(town);
+  });
+});
+
+describe('greek villages', () => {
+  const ROOFS: Record<number, number[]> = {
+    [STYLE_PASTEL]: [R_NONE, R_HIP, R_STEEP, R_FLAT],
+    [STYLE_ISLAND]: [R_NONE, R_FLAT, R_DOME, R_MILL],
+    [STYLE_MOUNTAIN]: [R_NONE, R_SLATE, R_STEEP, R_FLAT],
+  };
+
+  for (const theme of ['island', 'mountain'] as const) {
+    it(`generates a consistent ${theme} village with only that style's roofs`, () => {
+      const town = new Town(grid);
+      generateTown(town, mulberry32(theme === 'island' ? 5 : 6), theme);
+      assertConsistent(town);
+      const style = theme === 'island' ? STYLE_ISLAND : STYLE_MOUNTAIN;
+      let storeys = 0;
+      for (const c of town.cells.values()) {
+        if (!isStorey(c.tile)) continue;
+        storeys++;
+        expect(c.style).toBe(style);
+        expect(ROOFS[style]).toContain(decodeStorey(c.tile).roof);
+      }
+      expect(storeys).toBeGreaterThan(30);
+      const zones = new Set([...town.cells.values()].map((c) => c.kind));
+      expect(zones.has(ZONE_ROCKY) || zones.has(ZONE_OLIVE)).toBe(true);
+    });
+  }
+
+  it('turns a lone single-storey island house into a chapel or plain house, and lone towers may become windmills', () => {
+    const town = new Town(grid);
+    const v = grid.pos.findIndex((_, i) => grid.buildable[i] && Math.hypot(grid.pos[i].x, grid.pos[i].z) < 2);
+    town.add(v, 0, 0, 1, ZONE_MEADOW);
+    town.add(v, 1, 8, 2, KIND_BUILDING, STYLE_ISLAND);
+    const seen = new Set<number>();
+    for (let i = 0; i < 25; i++) {
+      town.reroll(v, 1);
+      const st = decodeStorey(town.get(v, 1)!.tile);
+      if (st.feat === F_CHAPEL) expect(st.roof).toBe(R_DOME);
+      seen.add(st.feat);
+    }
+    expect(seen.has(F_CHAPEL)).toBe(true);
+    town.add(v, 2, 8, 3, KIND_BUILDING, STYLE_ISLAND);
+    town.add(v, 3, 8, 4, KIND_BUILDING, STYLE_ISLAND);
+    const roofs = new Set<number>();
+    for (let i = 0; i < 25; i++) {
+      town.reroll(v, 3);
+      roofs.add(decodeStorey(town.get(v, 3)!.tile).roof);
+    }
+    expect(roofs.has(R_MILL)).toBe(true);
+    assertConsistent(town);
+  });
+
+  it('lets different styles stand side by side and repaints styles consistently', () => {
+    const town = new Town(grid);
+    const centre = grid.pos.map((_, i) => i).filter((i) => grid.buildable[i] && Math.hypot(grid.pos[i].x, grid.pos[i].z) < 3);
+    for (const u of centre) town.add(u, 0, 0, u, ZONE_MEADOW);
+    const styles = [STYLE_PASTEL, STYLE_ISLAND, STYLE_MOUNTAIN];
+    centre.forEach((u, i) => town.add(u, 1, i % 11, u * 3, KIND_BUILDING, styles[i % 3]));
+    assertConsistent(town);
+    for (const u of centre.slice(0, 6)) town.paint(u, 1, 9, STYLE_MOUNTAIN);
+    assertConsistent(town);
+    expect(town.styleAt(centre[0], 1)).toBe(STYLE_MOUNTAIN);
+    const copy = new Town(grid);
+    copy.load(town.serialize());
+    expect(copy.styleAt(centre[1], 1)).toBe(town.styleAt(centre[1], 1));
   });
 });

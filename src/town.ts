@@ -12,6 +12,7 @@ import { hash32, randomSeed } from './rng';
 import {
   COVERED,
   F_BALCONY,
+  F_CHAPEL,
   F_DOOR,
   F_FLOWERS,
   F_PLAIN,
@@ -19,14 +20,21 @@ import {
   F_SHUTTERS,
   FEAT_WEIGHT,
   KIND_BUILDING,
+  R_DOME,
   R_FLAT,
   R_HIP,
+  R_MILL,
   R_NONE,
+  R_SLATE,
   R_STEEP,
   REL_IS,
+  REL_MIX,
   REL_SAME,
   REL_SI,
   ROOF_WEIGHT,
+  STYLE_ISLAND,
+  STYLE_MOUNTAIN,
+  STYLE_PASTEL,
   T,
   W_ARCH,
   W_ROUND,
@@ -58,6 +66,8 @@ export interface Voxel {
   color: number;
   seed: number;
   tile: number;
+  /** Building style (STYLE_*); unused for land. */
+  style?: number;
 }
 
 /** What an edit changed: `fill` = voxels added/removed or whose land type changed
@@ -92,6 +102,10 @@ export class Town implements Csp {
 
   isBuilding(v: number, k: number): boolean {
     return this.kindAt(v, k) === KIND_BUILDING;
+  }
+
+  styleAt(v: number, k: number): number {
+    return this.get(v, k)?.style ?? STYLE_PASTEL;
   }
 
   /** Level of the top of the solid land column at `v`, or -1 if there is no land. */
@@ -156,22 +170,53 @@ export class Town implements Csp {
     const sideCount = g.edgeNbrs[v].filter((n) => this.isBuilding(n, lvl)).length;
     const hasWall = sideCount < g.edgeNbrs[v].length;
     const front = this.canFront(v, lvl);
+    const style = this.styleAt(v, lvl);
+    const alone = sideCount === 0;
 
-    const roofs = top ? [R_HIP, R_FLAT, ...(sideCount <= 1 ? [R_STEEP] : [])] : [R_NONE];
+    let roofs: number[];
+    if (!top) roofs = [R_NONE];
+    else if (style === STYLE_ISLAND) {
+      // Flat terraces or a rounded roof; a lone white tower can become a windmill.
+      const tower = alone && lvl >= 2 && this.isBuilding(v, lvl - 1) && this.styleAt(v, lvl - 1) === STYLE_ISLAND;
+      roofs = [R_FLAT, R_DOME, ...(tower ? [R_MILL] : [])];
+    } else if (style === STYLE_MOUNTAIN) {
+      // Slate roofs; slim towers may get a steep slate spire, tall lone towers a Mani-style flat top.
+      roofs = [R_SLATE, ...(sideCount <= 1 ? [R_STEEP] : []), ...(alone && lvl >= 3 ? [R_FLAT] : [])];
+    } else roofs = [R_HIP, R_FLAT, ...(sideCount <= 1 ? [R_STEEP] : [])];
+
     const wins = lvl >= 2 ? [W_SQUARE, W_ARCH, W_ROUND] : [W_SQUARE, W_ARCH];
+    // A lone, single-storey island house standing on the ground can become a chapel.
+    const chapel = style === STYLE_ISLAND && top && alone && this.isGround(v, lvl - 1);
     const feats = !hasWall
       ? [F_PLAIN]
-      : [F_PLAIN, F_SHUTTERS, F_FLOWERS, ...(lvl >= 2 ? [F_BALCONY] : []), ...(front ? [F_DOOR, F_SHOP] : [])];
+      : [
+          F_PLAIN,
+          F_SHUTTERS,
+          F_FLOWERS,
+          ...(lvl >= 2 ? [F_BALCONY] : []),
+          ...(front ? [F_DOOR, F_SHOP] : []),
+          ...(chapel ? [F_CHAPEL] : []),
+        ];
     const out: number[] = [];
-    for (const w of wins) for (const f of feats) for (const r of roofs) out.push(storeyTile(w, f, r));
+    for (const w of wins)
+      for (const f of feats)
+        for (const r of roofs) {
+          if (f === F_CHAPEL && r !== R_DOME) continue; // chapels always get a dome
+          if (r === R_MILL && f !== F_PLAIN) continue; // windmills keep plain walls
+          out.push(storeyTile(w, f, r));
+        }
     return out;
   }
 
-  weight(_k: number, t: number): number {
+  weight(kk: number, t: number): number {
     if (t === COVERED) return 1;
     if (isGroundTile(t)) return groundTile(t)!.weight;
     const s = decodeStorey(t);
-    return WIN_WEIGHT[s.win] * FEAT_WEIGHT[s.feat] * ROOF_WEIGHT[s.roof];
+    let w = WIN_WEIGHT[s.win] * FEAT_WEIGHT[s.feat] * ROOF_WEIGHT[s.roof];
+    // Cycladic houses are mostly flat-roofed; vaults and domes are the exception.
+    if (s.roof === R_FLAT && this.styleAt(keyV(kk), keyK(kk)) === STYLE_ISLAND) w *= 3;
+    if (s.roof === R_DOME && s.feat !== F_CHAPEL) w *= 0.35;
+    return w;
   }
 
   neighbors(kk: number): Nb[] {
@@ -179,8 +224,11 @@ export class Town implements Csp {
     const lvl = keyK(kk);
     const out: Nb[] = [];
     const ground = this.isGround(v, lvl);
+    const style = this.styleAt(v, lvl);
     for (const u of this.grid.quadMates[v]) {
-      if (this.has(u, lvl) && this.isGround(u, lvl) === ground) out.push({ key: key(u, lvl), rel: REL_SAME });
+      if (!this.has(u, lvl) || this.isGround(u, lvl) !== ground) continue;
+      const rel = ground || this.styleAt(u, lvl) === style ? REL_SAME : REL_MIX;
+      out.push({ key: key(u, lvl), rel });
     }
     if (ground) {
       if (!this.has(v, lvl + 1)) {
@@ -196,10 +244,10 @@ export class Town implements Csp {
 
   // ---------- editing ----------
 
-  add(v: number, k: number, color: number, seed = randomSeed(), kind = KIND_BUILDING): Change | null {
+  add(v: number, k: number, color: number, seed = randomSeed(), kind = KIND_BUILDING, style = STYLE_PASTEL): Change | null {
     if (!this.canPlace(v, k, kind)) return null;
     const kk = key(v, k);
-    this.cells.set(kk, { kind, color, seed, tile: -1 });
+    this.cells.set(kk, { kind, color, seed, tile: -1, ...(kind === KIND_BUILDING ? { style } : {}) });
     const ch: Change = { fill: new Set([kk]), look: new Set([kk]) };
     this.resolve([kk], ch);
     return ch;
@@ -239,12 +287,19 @@ export class Town implements Csp {
     return ch;
   }
 
-  paint(v: number, k: number, color: number): Change | null {
+  /** Repaint a building, optionally changing its architectural style too. */
+  paint(v: number, k: number, color: number, style?: number): Change | null {
     const kk = key(v, k);
     const cell = this.cells.get(kk);
-    if (!cell || cell.kind !== KIND_BUILDING || cell.color === color) return null;
+    if (!cell || cell.kind !== KIND_BUILDING) return null;
+    const newStyle = style ?? cell.style ?? STYLE_PASTEL;
+    if (cell.color === color && (cell.style ?? STYLE_PASTEL) === newStyle) return null;
+    const styleChanged = (cell.style ?? STYLE_PASTEL) !== newStyle;
     cell.color = color;
-    return { fill: new Set(), look: new Set([kk]) };
+    cell.style = newStyle;
+    const ch: Change = { fill: new Set(styleChanged ? [kk] : []), look: new Set([kk]) };
+    if (styleChanged) this.resolve([kk], ch);
+    return ch;
   }
 
   clear(): Change {
@@ -356,7 +411,7 @@ export class Town implements Csp {
     for (const k of new Set([...this.cells.keys(), ...snap.keys()])) {
       const a = this.cells.get(k);
       const b = snap.get(k);
-      if (!a || !b || a.kind !== b.kind) ch.fill.add(k);
+      if (!a || !b || a.kind !== b.kind || a.style !== b.style) ch.fill.add(k);
       else if (a.tile !== b.tile || a.color !== b.color) ch.look.add(k);
     }
     this.cells = new Map([...snap].map(([k, c]) => [k, { ...c }]));
@@ -366,7 +421,7 @@ export class Town implements Csp {
   serialize(): string {
     const parts: string[] = [];
     for (const [k, c] of this.cells) {
-      parts.push([keyV(k), keyK(k), c.color, c.seed, c.kind].map((x) => x.toString(36)).join('.'));
+      parts.push([keyV(k), keyK(k), c.color, c.seed, c.kind, c.style ?? 0].map((x) => x.toString(36)).join('.'));
     }
     return 'c2:' + parts.join('_');
   }
@@ -385,7 +440,8 @@ export class Town implements Csp {
         let kind = version === 'c1:' ? (k === 0 ? ZONE_MEADOW : KIND_BUILDING) : nums[4];
         if (!Number.isFinite(kind) || (kind !== KIND_BUILDING && !isZone(kind))) kind = k === 0 ? ZONE_MEADOW : KIND_BUILDING;
         if (v < 0 || v >= this.grid.pos.length || !this.grid.buildable[v] || k < 0 || k > MAX_LEVEL) continue;
-        cells.set(key(v, k), { kind, color: c, seed: s >>> 0, tile: -1 });
+        const style = Number.isFinite(nums[5]) && nums[5] >= 0 && nums[5] <= STYLE_MOUNTAIN ? nums[5] : STYLE_PASTEL;
+        cells.set(key(v, k), { kind, color: c, seed: s >>> 0, tile: -1, ...(kind === KIND_BUILDING ? { style } : {}) });
       }
     }
     // Repair invalid stacks: land must rest on land, buildings never sit at level 0.
@@ -394,6 +450,7 @@ export class Town implements Csp {
       const k = keyK(kk);
       if (isZone(c.kind) && k > 0 && !isZone(cells.get(key(v, k - 1))?.kind ?? -1)) c.kind = KIND_BUILDING;
       if (c.kind === KIND_BUILDING && k === 0) c.kind = ZONE_MEADOW;
+      if (c.kind === KIND_BUILDING) c.style ??= STYLE_PASTEL;
     }
     this.cells = cells;
     this.solveAll();

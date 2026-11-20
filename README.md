@@ -19,6 +19,8 @@ This is an independent, non-commercial learning project, built from scratch. It 
 
 The solver is based on **[Wave Function Collapse](https://github.com/mxgmn/WaveFunctionCollapse)** by Maxim Gumin.
 
+The two Greek building styles are drawn from the vernacular architecture of the Cyclades and of the mountain villages of Zagori, Pelion and Mani. See [docs/greek-villages.md](docs/greek-villages.md) for the references and how each trait maps into the game.
+
 ## Features
 
 - **Build by clicking.** Click the clouds to raise an island, click land or a roof to build up, click a wall to build sideways. Overhangs turn into arches and bridges.
@@ -27,7 +29,9 @@ The solver is based on **[Wave Function Collapse](https://github.com/mxgmn/WaveF
 - **A town that decides the details.** Doors open onto squares, roofs join up, forests grow in stands, reeds line the shore, and boats drift in open water.
 - **Day and night**, with glowing windows and lamps, drifting clouds, birds and gentle generated sound.
 - **Undo/redo, autosave, share links** (the whole town is packed into the URL), **"Surprise me"** random towns and a picture button.
-- **A built-in visual guide** (the **?** button) with an interactive WFC demo and illustrated rules.
+- **Greek island and mountain villages.** Build in a whitewashed Cycladic style (flat roofs, vaults, chapels with painted domes, windmills, bougainvillea) or a stone mountain style (slate roofs, wooden bays, stone bridges, Mani towers), or mix them in one town.
+- **Mediterranean land.** Olive groves with cypresses and dry-stone walls, rocky hillsides with thyme, goats and roadside shrines, and village squares shaded by a plane tree.
+- **A built-in visual guide** (the **?** button) with an interactive WFC demo, illustrated rules and the Greek references.
 
 <table>
   <tr>
@@ -39,6 +43,29 @@ The solver is based on **[Wave Function Collapse](https://github.com/mxgmn/WaveF
     <td align="center"><sub>Night falls and the windows light up</sub></td>
   </tr>
 </table>
+
+## Greek villages
+
+<table>
+  <tr>
+    <td><img src="docs/island-village.jpg" alt="A Cycladic island village: whitewashed houses, windmills, a blue-domed chapel, olive groves and a lake"></td>
+    <td><img src="docs/mountain-village.jpg" alt="A mountain village: stone houses with grey slate roofs, tall stone towers, woods and olive groves on steep hills"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Island village</b>: whitewash, vaults, chapels and windmills</sub></td>
+    <td align="center"><sub><b>Mountain village</b>: stone, slate, wooden bays and towers</sub></td>
+  </tr>
+</table>
+
+Choose a style with the house icons next to the colours (Pastel, Island or Mountain), or use **Surprise me → Greek island village / Greek mountain village**. On Greek buildings, the paint colour goes on the doors, shutters and domes instead of the walls. **Paint** applies both colour and style, so you can convert a building and watch its neighbours adapt.
+
+| Island (Cyclades) | Mountain (Zagori, Pelion, Mani) |
+| --- | --- |
+| Whitewashed cubes with flat roofs | Coursed local stone with wooden shutters |
+| Rounded roofs: domes on lone houses, barrel vaults along rows | Grey slate roofs with deep slab eaves and tall chimneys |
+| A lone one-storey house can become a **chapel** with a painted dome, cross and bell gable | Balconies become **sachnisia**, overhanging wooden bays |
+| Lone towers can become **windmills** with canvas sails | Storeys spanning a gap become **stone arched bridges** |
+| Bougainvillea, painted balconies, whitewashed paving joints, taverna awnings | Tall lone towers get **Mani-style** crenellated tops |
 
 ## Getting started
 
@@ -65,9 +92,10 @@ The built site is fully static, so `dist/` can be hosted anywhere (GitHub Pages,
 | Click the clouds | raise an island |
 | Click land or a roof | build a storey on top |
 | Click a wall | build sideways (overhangs become arches and bridges) |
-| **Land** tool + Meadow / Woods / Square / Water | paint the ground; click the same land again to raise a hill |
+| **Land** tool + Meadow / Woods / Square / Water / Olive grove / Rocky hillside | paint the ground; click the same land again to raise a hill |
+| Style icons (Pastel / Island / Mountain) | choose the architecture of new buildings |
 | **Restyle** tool or <kbd>Alt</kbd>/<kbd>⌥</kbd>-click | get a different version of a piece; its neighbours adapt |
-| **Paint** tool or <kbd>Shift</kbd>-click | recolour walls |
+| **Paint** tool or <kbd>Shift</kbd>-click | apply the selected colour and style to a building |
 | **Erase** tool or right-click | remove a piece |
 | Drag / right-drag / scroll | orbit / pan / zoom |
 | <kbd>1</kbd>–<kbd>5</kbd>, <kbd>N</kbd>, <kbd>Ctrl/Cmd</kbd>+<kbd>Z</kbd>, <kbd>?</kbd> | tools, day/night, undo (add <kbd>Shift</kbd> to redo), guide |
@@ -91,16 +119,17 @@ You build on the grid's **corners**. Each corner owns the quarter of every quad 
 
 Every filled voxel is a variable that has to become one tile:
 
-- **Storeys** combine a window style × a facade feature (plain, shutters, flower boxes, balcony, door, shop) × a roof (hip, steep spire, flat terrace).
-- **Land** picks from its painted type: meadow (grass, flowers, tree, bush, rocks), woods (pines, oaks, grove, clearing), squares (paving, lamp, bench, planter, fountain, market stall) or water (open, lilies, reeds, boat, rock).
+- **Storeys** combine a window style × a facade feature (plain, shutters, flowers, balcony, door, shop, chapel) × a roof (hip, steep, flat, rounded dome/vault, slate, windmill). Each building style allows its own subset.
+- **Land** picks from its painted type: meadow (grass, flowers, tree, bush, rocks), woods (pines, oaks, grove, clearing), squares (paving, lamp, bench, planter, fountain, market stall, plane tree, kafeneio tables), water (open, lilies, reeds, boat, rock), olive grove (olives, cypresses, dry-stone wall, poppies) or rocky hillside (boulders, scrub, goat, shrine, stones).
 
-**Context** narrows the options: roofs only on top floors, doors only on the ground floor facing walkable land, spires only on slim towers, reeds only on a shore, boats only in open water. **Neighbour rules** connect the pieces:
+**Context** narrows the options: roofs only on top floors, doors only on the ground floor facing walkable land, spires only on slim towers, chapels only on lone single-storey island houses, windmills only on lone island towers, reeds only on a shore, boats only in open water. **Neighbour rules** connect the pieces:
 
 - storeys on the same floor share a window style, so a row of houses reads as one building;
 - touching roofs share a type, so their ridges meet;
 - no two doors side by side, and doors and shopfronts never open onto a tree, fountain, stall or planter;
 - woods grow in pine or oak stands joined by mixed groves, and clearings never touch;
-- squares keep fountains and lamps apart.
+- squares keep fountains and lamps apart and have one plane tree;
+- these rules apply between buildings of the **same style**; different styles can stand side by side with only the doorway rule.
 
 The solver propagates the rules (arc consistency), collapses the variable with the fewest options left, and repeats. Two extra choices make it feel good to play with:
 
@@ -128,16 +157,17 @@ There are no hand-made models. Each voxel's geometry is generated from its own i
 src/
   grid.ts      irregular quad grid: triangles → merge → subdivide → relax, plus dual cells
   wfc.ts       generic graph Wave Function Collapse solver
-  tiles.ts     tile catalogue, land types and neighbour rules
+  tiles.ts     tile catalogue, building styles, land types and neighbour rules
   town.ts      town state, editing, contexts, local re-solving, save/load
-  builder.ts   procedural geometry for storeys, roofs, arches, terrain and props
+  builder.ts   procedural geometry: pastel, Cycladic and stone storeys, roofs, arches, terrain and props
   geo.ts       tiny mesh builder (flat-shaded, vertex-coloured, picking actions)
-  generate.ts  "Surprise me" town generator
+  generate.ts  "Surprise me" generator: island village, mountain village or pastel town
   scene.ts     renderer, camera, sky, clouds, birds, day/night
   view.ts      voxel meshes, animations, hover ghost, grid lines
   help.ts      the in-game guide: tabs, grid diagrams, interactive WFC demo
   main.ts      input, tools, UI, history and persistence
-tests/         grid validity, WFC constraint satisfaction, terrain seams, geometry
+tests/         grid validity, WFC constraints, terrain seams, Greek styles, geometry
+docs/          screenshots and the Greek architecture references
 ```
 
 Handy for screenshots: append `?cam=x,y,z,tx,ty,tz` to set the camera position and target, and `?night` to start at night.

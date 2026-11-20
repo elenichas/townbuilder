@@ -5,7 +5,7 @@
 import { type GridStage, type Vec2, generateGrid } from './grid';
 import { mulberry32 } from './rng';
 
-export type HelpTab = 'play' | 'grid' | 'wfc' | 'rules' | 'game' | 'terrain';
+export type HelpTab = 'play' | 'grid' | 'wfc' | 'rules' | 'game' | 'greek' | 'terrain';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent?: Element) => {
