@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Cloudhaven</title>
+    <meta name="description" content="A cozy, goal-free town builder on floating sky islands." />
+    <link rel="icon" href="/assets/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@500;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <header class="brand">
+      <h1>Cloudhaven</h1>
+      <p id="hint">Click the clouds to raise an island</p>
+    </header>
+
+    <nav class="toolbar" aria-label="Tools">
+      <div class="group" role="radiogroup" aria-label="Tool">
+        <button data-tool="build" class="tool active" title="Build (1)" aria-pressed="true">
+          <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" /></svg><span>Build</span>
+        </button>
+        <button data-tool="restyle" class="tool" title="Restyle (2) · or Alt/Option-click" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z" /></svg><span>Restyle</span>
+        </button>
+        <button data-tool="paint" class="tool" title="Paint (3) · or Shift-click" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M18 3l3 3-9 9-3-3zM9 12l-3 3a3 3 0 0 0-3 3v3h3a3 3 0 0 0 3-3l3-3" /></svg><span>Paint</span>
+        </button>
+        <button data-tool="erase" class="tool" title="Erase (4) · or right-click" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M20 20H9M3.5 14.5l9-9a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3L13 19H8z" /></svg><span>Erase</span>
+        </button>
+      </div>
+      <div class="group swatches" id="swatches" aria-label="Colour"></div>
+      <div class="group">
+        <button id="undo" title="Undo (Ctrl/Cmd+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" /></svg></button>
+        <button id="redo" title="Redo (Ctrl/Cmd+Shift+Z)"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3" /></svg></button>
+      </div>
+      <div class="group">
+        <button id="night" title="Day / night (N)"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg></button>
+        <button id="surprise" title="Surprise me: grow a random town"><svg viewBox="0 0 24 24"><path d="M15 4V2M15 10V8M11 6h2M17 6h2M4 20L14 10M18 13l.6 1.4L20 15l-1.4.6L18 17l-.6-1.4L16 15l1.4-.6z" /></svg></button>
+        <button id="share" title="Copy a link to this town"><svg viewBox="0 0 24 24"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg></button>
+        <button id="photo" title="Save a picture"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" /></svg></button>
+        <button id="sound" title="Sound on/off"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7" /></svg></button>
+        <button id="clear" title="Start over"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></button>
+        <button id="helpBtn" title="How to play (?)"><svg viewBox="0 0 24 24"><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01" /></svg></button>
+      </div>
+    </nav>
+
+    <div id="help" class="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div class="card">
+        <h2 id="helpTitle">Welcome to Cloudhaven</h2>
+        <p class="lead">No goals, no rush. Just build a little town in the sky.</p>
+        <ul>
+          <li><b>Click the clouds</b> to raise an island.</li>
+          <li><b>Click an island or a roof</b> to build up. <b>Click a wall</b> to build sideways. Overhangs turn into arches and bridges.</li>
+          <li><b>Restyle</b> (or <kbd>Alt</kbd>/<kbd>⌥</kbd>-click) swaps a piece for a different version. The pieces around it change to match.</li>
+          <li><b>Paint</b> (or <kbd>Shift</kbd>-click) recolours walls. <b>Erase</b> (or right-click) removes a piece.</li>
+          <li>Drag to orbit, right-drag to pan, scroll or pinch to zoom.</li>
+        </ul>
+        <div class="actions">
+          <button id="helpSurprise" class="secondary">Surprise me</button>
+          <button id="helpClose" class="primary">Start building</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
