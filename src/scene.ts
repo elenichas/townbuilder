@@ -53,6 +53,8 @@ export interface SceneCtx {
   /** 0 = day, 1 = night (animated). */
   nightness(): number;
   tick(dt: number, t: number): void;
+  /** Glide the camera back to the starting view. */
+  resetView(): void;
 }
 
 export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
@@ -66,10 +68,12 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.5, 900);
-  camera.position.set(22, 19, 24);
+  const HOME_POS = new THREE.Vector3(22, 19, 24);
+  const HOME_TARGET = new THREE.Vector3(0, 0.6, 0);
+  camera.position.copy(HOME_POS);
 
   const controls = new OrbitControls(camera, canvas);
-  controls.target.set(0, 0.6, 0);
+  controls.target.copy(HOME_TARGET);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.minDistance = 5;
@@ -199,6 +203,7 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
 
   let target = 0;
   let night = 0;
+  let flyFrom: { pos: THREE.Vector3; target: THREE.Vector3; t0: number } | null = null;
   const applyLook = (n: number) => {
     const lerp = (a: THREE.Color, b: THREE.Color, out: THREE.Color) => out.copy(a).lerp(b, n);
     lerp(DAY.top, NIGHT.top, skyUniforms.top.value);
@@ -236,6 +241,9 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
       }
     },
     isNight: () => target === 1,
+    resetView() {
+      flyFrom = { pos: camera.position.clone(), target: controls.target.clone(), t0: performance.now() };
+    },
     nightness: () => night,
     tick(dt: number, t: number) {
       if (night !== target) {
@@ -250,6 +258,13 @@ export function createScene(canvas: HTMLCanvasElement, grid: Grid): SceneCtx {
         const flap = Math.sin(t * 9 + b.ph) * 0.55;
         b.l.rotation.z = flap;
         b.r.rotation.z = -flap;
+      }
+      if (flyFrom) {
+        const p = Math.min(1, (performance.now() - flyFrom.t0) / 900);
+        const e = 1 - Math.pow(1 - p, 3);
+        camera.position.lerpVectors(flyFrom.pos, HOME_POS, e);
+        controls.target.lerpVectors(flyFrom.target, HOME_TARGET, e);
+        if (p >= 1) flyFrom = null;
       }
       controls.update();
       renderer.render(scene, camera);

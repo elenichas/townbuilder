@@ -410,7 +410,15 @@ function toggleHelp(show: boolean, tab?: HelpTab) {
   else help.pause();
 }
 $('helpBtn').addEventListener('click', () => toggleHelp(true, 'play'));
-$('helpClose').addEventListener('click', () => toggleHelp(false));
+// "Start building" means a fresh start: clear the town (undoable) and return the camera home.
+$('helpClose').addEventListener('click', () => {
+  toggleHelp(false);
+  ctx.resetView();
+  if (!town.cells.size) return;
+  replaceTown(() => town.clear());
+  puffs.burst(0, 0.5, 0, 12);
+  toast('Fresh start. Undo brings your town back');
+});
 $('helpSurprise').addEventListener('click', () => {
   toggleHelp(false);
   surprise();
